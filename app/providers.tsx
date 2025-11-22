@@ -38,6 +38,12 @@ type ThemeName = keyof typeof themeMap;
 const themeName = (process.env.NEXT_PUBLIC_THEME as ThemeName) || 'hacker';
 const selectedTheme = themeMap[themeName];
 
+// Persistent across renders + strict mode remounts
+let hasAttachedPlayerListener = false;
+
+// WeakSet survives React re-renders and tracks actual DOM elements
+const styledIframes = new WeakSet<HTMLIFrameElement>();
+
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     aioha.registerKeychain()
@@ -52,48 +58,57 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // Global listener for 3Speak video player orientation
   useEffect(() => {
+    // Prevent Strict Mode from double-attaching the listener
+    if (hasAttachedPlayerListener) return;
+    
     const handleVideoOrientation = (event: MessageEvent) => {
       // Check if message is from 3speak player
-      if (event.data.type === '3speak-player-ready') {
+      if (event.data?.type !== '3speak-player-ready') return;
+      
+      // Find all 3speak iframes and match by src
+      const iframes = document.querySelectorAll<HTMLIFrameElement>(
+        'iframe[src*="play.3speak.tv"]'
+      );
+      
+      iframes.forEach((iframe) => {
+        // Skip if already styled (WeakSet check)
+        if (styledIframes.has(iframe)) return;
+        
+        // Check if this iframe's contentWindow matches the event source
+        try {
+          if (iframe.contentWindow !== event.source) return;
+        } catch {
+          return;
+        }
+        
         console.log('📹 3Speak video loaded:', event.data);
         
-        // Find all 3speak iframes and match by src
-        const iframes = document.querySelectorAll('iframe[src*="play.3speak.tv"]');
+        const isVertical = event.data.isVertical;
         
-        iframes.forEach((iframe) => {
-          const iframeElement = iframe as HTMLIFrameElement;
-          
-          // Check if this iframe's contentWindow matches the event source
-          try {
-            if (iframeElement.contentWindow === event.source) {
-              if (event.data.isVertical) {
-                // Vertical video - mobile-friendly portrait dimensions
-                iframeElement.style.height = '800px';
-                iframeElement.style.maxWidth = '450px';
-                iframeElement.style.margin = '0 auto';
-                iframeElement.parentElement?.classList.add('vertical-video');
-                console.log('📱 Applied vertical video styling');
-              } else {
-                // Horizontal video - standard landscape dimensions
-                iframeElement.style.height = '450px';
-                iframeElement.style.maxWidth = '800px';
-                iframeElement.style.margin = '0 auto';
-                iframeElement.parentElement?.classList.add('horizontal-video');
-                console.log('🖥️ Applied horizontal video styling');
-              }
-            }
-          } catch (e) {
-            // Cross-origin check failed, skip this iframe
-          }
-        });
-      }
+        // Apply responsive dimensions
+        iframe.style.margin = '0 auto';
+        iframe.style.maxWidth = isVertical ? '450px' : '800px';
+        iframe.style.height = isVertical ? '800px' : '450px';
+        
+        iframe.parentElement?.classList.add(
+          isVertical ? 'vertical-video' : 'horizontal-video'
+        );
+        
+        // Mark iframe as styled
+        styledIframes.add(iframe);
+        
+        console.log(
+          isVertical
+            ? '📱 Applied vertical video styling'
+            : '🖥️ Applied horizontal video styling'
+        );
+      });
     };
 
     window.addEventListener('message', handleVideoOrientation);
+    hasAttachedPlayerListener = true;
     
-    return () => {
-      window.removeEventListener('message', handleVideoOrientation);
-    };
+    console.log('🎯 Attached SINGLE 3Speak listener');
   }, []);
 
   return (
