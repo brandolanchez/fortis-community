@@ -193,7 +193,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                             body: commentBody,
                             json_metadata: JSON.stringify({ app: 'mycommunity', tags: snapsTags, images: validUrls })
                         }
-                    ];
+                    ] as const;
 
                     const optionsOp = [
                         'comment_options',
@@ -218,9 +218,9 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                                 ]
                             ]
                         }
-                    ];
+                    ] as const;
 
-                    commentResponse = await aioha.signAndBroadcastTx([commentOp, optionsOp] as any, KeyTypes.Posting);
+                    commentResponse = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting);
                 } else {
                     // Regular post without beneficiaries
                     commentResponse = await aioha.comment(pa, pp, permlink, '', commentBody, { app: 'mycommunity', tags: snapsTags, images: validUrls });
@@ -288,7 +288,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                         <VideoUploader onUpload={handleVideoSelection} />
                     </Button>
                 </HStack>
-                <Button variant="solid" colorScheme="primary" onClick={handleComment} isDisabled={isLoading || (selectedVideo && !videoEmbedUrl)}>
+                <Button variant="solid" colorScheme="primary" onClick={handleComment} isDisabled={isLoading || Boolean(selectedVideo && !videoEmbedUrl)}>
                     {isLoading ? <Spinner size="sm" /> : buttonText}
                 </Button>
             </HStack>

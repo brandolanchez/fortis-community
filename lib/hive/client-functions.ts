@@ -293,44 +293,46 @@ export function getFileSignature (file: File): Promise<string> {
 }
 
 export async function uploadImage(file: File, signature: string, index?: number, setUploadProgress?: React.Dispatch<React.SetStateAction<number[]>>): Promise<string> {
-
-  const signatureUser = process.env.NEXT_PUBLIC_HIVE_USER
-
+  const signatureUser = process.env.NEXT_PUBLIC_HIVE_USER;
   const formData = new FormData();
-        formData.append("file", file, file.name);
+  formData.append("file", file, file.name);
 
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', 'https://images.hive.blog/' + signatureUser + '/' + signature, true);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://images.hive.blog/${signatureUser}/${signature}`, true);
 
-            if (index && setUploadProgress) {
-              xhr.upload.onprogress = (event) => {
-                  if (event.lengthComputable) {
-                      const progress = (event.loaded / event.total) * 100;
-                      setUploadProgress((prevProgress: number[]) => {
-                          const updatedProgress = [...prevProgress];
-                          updatedProgress[index] = progress;
-                          return updatedProgress;
-                      });
-                  }
-              }
-            }
+    if (index !== undefined && setUploadProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = (event.loaded / event.total) * 100;
+          setUploadProgress((prevProgress: number[]) => {
+            const updatedProgress = [...prevProgress];
+            updatedProgress[index] = progress;
+            return updatedProgress;
+          });
+        }
+      }
+    }
 
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-                    resolve(response.url);
-                } else {
-                    reject(new Error('Failed to upload image'));
-                }
-            };
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          resolve(response.url);
+        } catch (e) {
+          reject(new Error(`Invalid response format: ${xhr.responseText}`));
+        }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status} - ${xhr.statusText}`));
+      }
+    };
 
-            xhr.onerror = () => {
-                reject(new Error('Failed to upload image'));
-            };
+    xhr.onerror = () => {
+      reject(new Error('Network error'));
+    };
 
-            xhr.send(formData);
-        });
+    xhr.send(formData);
+  });
 }
 
 export async function getPost(user: string, postId: string) {
