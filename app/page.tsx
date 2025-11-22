@@ -109,7 +109,7 @@ export default function Home() {
             onOpen={onOpen}
             setReply={setReply}
             newComment={newComment}
-            data={snaps}
+            data={{...snaps, refresh: snaps.refresh}}
           />
         ) : (
           <Conversation comment={conversation} setConversation={setConversation} onOpen={onOpen} setReply={setReply} />

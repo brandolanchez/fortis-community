@@ -22,10 +22,7 @@ interface InfiniteScrollData {
   loadNextPage: () => void; // Default can be an empty function in usage
   isLoading: boolean;
   hasMore: boolean; // Default can be `false` in usage
-}
-
-function handleNewComment() {
-
+  refresh?: () => void; // Function to refresh the feed
 }
 
 export default function SnapList(
@@ -38,7 +35,17 @@ export default function SnapList(
     newComment,
     post,
     data
-}: SnapListProps) {  const { comments, loadNextPage, isLoading, hasMore } = data
+}: SnapListProps) {  
+  const { comments, loadNextPage, isLoading, hasMore, refresh } = data
+
+  const handleNewComment = () => {
+    // Simple feed refresh after posting with delay for blockchain to catch up
+    if (refresh) {
+      setTimeout(() => {
+        refresh();
+      }, 3000); // 3 second delay to let Hive blockchain propagate the transaction
+    }
+  };
 
   comments.sort((a: ExtendedComment, b: ExtendedComment) => {
     return new Date(b.created).getTime() - new Date(a.created).getTime();

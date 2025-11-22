@@ -220,7 +220,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                         }
                     ];
 
-                    commentResponse = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting);
+                    commentResponse = await aioha.signAndBroadcastTx([commentOp, optionsOp] as any, KeyTypes.Posting);
                 } else {
                     // Regular post without beneficiaries
                     commentResponse = await aioha.comment(pa, pp, permlink, '', commentBody, { app: 'mycommunity', tags: snapsTags, images: validUrls });

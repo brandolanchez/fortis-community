@@ -197,5 +197,15 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     };
   })();
 
-  return { comments, isLoading, loadNextPage, hasMore, currentPage };
+  // Refresh function to refetch data (F5 equivalent)
+  const refresh = () => {
+    lastContainerRef.current = null;
+    fetchedPermlinksRef.current.clear();
+    setComments([]);
+    setHasMore(true);
+    setCurrentPage(1);
+    setFetchTrigger(prev => prev + 1);
+  };
+
+  return { comments, isLoading, loadNextPage, hasMore, currentPage, refresh };
 };
