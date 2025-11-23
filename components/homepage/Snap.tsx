@@ -3,7 +3,7 @@ import { Comment } from '@hiveio/dhive';
 import { ExtendedComment } from '@/hooks/useComments';
 import { FaRegComment, FaRegHeart, FaShare, FaHeart } from "react-icons/fa";
 import { useAioha } from '@aioha/react-ui';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { getPostDate } from '@/lib/utils/GetPostDate';
 import { separateContent, extractHivePostUrls } from '@/lib/utils/snapUtils';
 import MediaRenderer from '@/components/shared/MediaRenderer';
@@ -19,7 +19,7 @@ interface SnapProps {
     level?: number; // Added level for indentation
 }
 
-const Snap = ({ comment, onOpen, setReply, setConversation, level = 0 }: SnapProps) => {
+const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: SnapProps) => {
     const commentDate = getPostDate(comment.created);
     const { aioha, user } = useAioha();
     const [voted, setVoted] = useState(comment.active_votes?.some(item => item.voter === user))
@@ -191,6 +191,15 @@ const Snap = ({ comment, onOpen, setReply, setConversation, level = 0 }: SnapPro
             )}
         </Box>
     );
-};
+}, (prevProps, nextProps) => {
+    // Only re-render if the comment permlink or active_votes length changes
+    return (
+        prevProps.comment.permlink === nextProps.comment.permlink &&
+        prevProps.comment.active_votes?.length === nextProps.comment.active_votes?.length &&
+        prevProps.level === nextProps.level
+    );
+});
+
+Snap.displayName = 'Snap';
 
 export default Snap;

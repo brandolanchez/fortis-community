@@ -51,13 +51,38 @@ const iframeBySource = new WeakMap<Window, HTMLIFrameElement>();
 function styleIframe(iframe: HTMLIFrameElement, data: any) {
   const isVertical = data.isVertical;
   
-  iframe.style.margin = '0 auto';
-  iframe.style.maxWidth = isVertical ? '450px' : '800px';
-  iframe.style.height = isVertical ? '800px' : '450px';
+  const parent = iframe.parentElement;
+  if (!parent) return;
   
-  iframe.parentElement?.classList.add(
-    isVertical ? 'vertical-video' : 'horizontal-video'
-  );
+  if (isVertical) {
+    // Vertical videos: constrain width, height auto
+    iframe.style.position = 'static';
+    iframe.style.width = '100%';
+    iframe.style.maxWidth = '450px';
+    iframe.style.height = 'auto';
+    iframe.style.aspectRatio = '9 / 16';
+    iframe.style.display = 'block';
+    iframe.style.margin = '0 auto';
+    
+    parent.style.display = 'flex';
+    parent.style.justifyContent = 'center';
+    parent.style.width = '100%';
+  } else {
+    // Horizontal videos: use padding trick
+    iframe.style.position = 'absolute';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    
+    parent.style.position = 'relative';
+    parent.style.width = '100%';
+    parent.style.maxWidth = '800px';
+    parent.style.margin = '0 auto';
+    parent.style.paddingBottom = '56.25%'; // 16:9 ratio
+  }
+  
+  parent.classList.add(isVertical ? 'vertical-video' : 'horizontal-video');
   
   // Only log in development
   if (process.env.NODE_ENV === 'development') {
