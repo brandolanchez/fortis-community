@@ -311,8 +311,8 @@ export async function uploadAudioTo3Speak(
       success: true,
       permlink: data.permlink,
       cid: data.cid,
-      playUrl: data.playUrl,
-      apiUrl: data.apiUrl,
+      playUrl: data.playUrl?.replace(/^http:/, 'https:') || data.playUrl,
+      apiUrl: data.apiUrl?.replace(/^http:/, 'https:') || data.apiUrl,
     };
   } catch (error) {
     console.error('Error uploading audio to 3Speak:', error);
