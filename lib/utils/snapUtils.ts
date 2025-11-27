@@ -323,6 +323,8 @@ export const parseMediaContent = (mediaContent: string): MediaItem[] => {
       const urlMatch = trimmedItem.match(/(https?:\/\/audio\.3speak\.tv\/play\?a=[^\s<>"']+)/);
       if (urlMatch && urlMatch[1]) {
         let embedUrl = urlMatch[1];
+        // Force HTTPS for production (mixed content security)
+        embedUrl = embedUrl.replace(/^http:/, 'https:');
         // Add mode=compact&iframe=1 for clean embedding without scrollbars
         if (!embedUrl.includes('mode=')) {
           embedUrl += '&mode=compact';
