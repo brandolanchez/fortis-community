@@ -219,14 +219,15 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                         {comment.active_votes?.length}
                     </Button>
                     <HStack spacing={4}>
-                        {/* Reply button - opens full post view to see/write comments */}
+                        {/* Reply button - opens reply modal */}
+                        <HStack spacing={1} cursor="pointer" onClick={handleReplyModal}>
+                            <FaRegComment />
+                        </HStack>
+                        {/* View conversation button - opens full post with all comments */}
                         {setConversation && (
-                            <HStack spacing={1} cursor="pointer" onClick={handleConversation}>
-                                <FaRegComment />
-                                <Text fontWeight="bold">
-                                    {comment.children}
-                                </Text>
-                            </HStack>
+                            <Text fontWeight="bold" cursor="pointer" onClick={handleConversation}>
+                                {comment.children}
+                            </Text>
                         )}
                         {canEdit && (
                             <HStack spacing={1} cursor="pointer" onClick={() => setIsEditModalOpen(true)}>
