@@ -175,7 +175,7 @@ export default function Home() {
           window.location.href = `/@${username}/${permlink}`
         }, 1500)
       } else {
-        throw new Error(result.errorMessage || 'Failed to publish post')
+        throw new Error((result as any).errorMessage || (result as any).error || 'Failed to publish post')
       }
     } catch (error) {
       console.error('❌ Post submission error:', error)
