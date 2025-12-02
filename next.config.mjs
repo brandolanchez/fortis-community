@@ -6,12 +6,19 @@ const nextConfig = {
         },
     },
     webpack: (config, { isServer }) => {
-        if (!isServer) {
-            config.resolve.fallback = {
-                fs: false,
-                memcpy: false,
-            };
-        }
+        // Ignore optional native dependencies that don't work in Vercel
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            fs: false,
+            memcpy: false,
+        };
+        
+        // Ignore memcpy module completely
+        config.externals = config.externals || [];
+        config.externals.push({
+            'memcpy': 'commonjs memcpy'
+        });
+        
         return config;
     }
 }

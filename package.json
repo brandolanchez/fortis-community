@@ -52,5 +52,8 @@
     "overrides": {
       "@aioha/react-provider": "1.4.1"
     }
+  },
+  "resolutions": {
+    "memcpy": "npm:noop2@latest"
   }
 }
