@@ -71,18 +71,21 @@ export default function PostDetails({ post }: PostDetailsProps) {
                         marginLeft: 'auto',
                         marginRight: 'auto'
                     },
-                    '& iframe': {
+                    '& .video-container': {
                         width: '100%',
-                        aspectRatio: '16/9',
-                        borderRadius: 'md',
-                        border: 'none',
-                        overflow: 'hidden',
                         marginTop: '1em',
                         marginBottom: '1em'
                     },
+                    '& iframe': {
+                        maxWidth: '100%',
+                        borderRadius: 'md',
+                        border: 'none'
+                    },
                     '& iframe[src*="audio.3speak.tv"]': {
-                        aspectRatio: 'auto',
-                        height: '200px'
+                        width: '100%',
+                        height: '200px',
+                        marginTop: '1em',
+                        marginBottom: '1em'
                     }
                 }}
             />

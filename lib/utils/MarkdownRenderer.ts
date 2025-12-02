@@ -14,28 +14,28 @@ function transformIPFSContent(content: string): string {
 }
 
 function transform3SpeakContent(content: string): string {
-    // Handle 3Speak watch URLs (legacy format)
+    // Handle 3Speak watch URLs (legacy format) - they're in <a> tags after rendering
     content = content.replace(
-        /https?:\/\/play\.3speak\.tv\/watch\?v=([^\s<>"']+)/g,
-        (match, videoId) => {
+        /<a[^>]*href="(https?:\/\/play\.3speak\.tv\/watch\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
+        (match, fullUrl, videoId) => {
             const embedUrl = `https://play.3speak.tv/watch?v=${videoId}&mode=iframe`;
-            return `<iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe>`;
+            return `<div class="video-container"><iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe></div>`;
         }
     );
 
     // Handle 3Speak embed URLs (new format)
     content = content.replace(
-        /https?:\/\/play\.3speak\.tv\/embed\?v=([^\s<>"']+)/g,
-        (match, videoId) => {
+        /<a[^>]*href="(https?:\/\/play\.3speak\.tv\/embed\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
+        (match, fullUrl, videoId) => {
             const embedUrl = `https://play.3speak.tv/embed?v=${videoId}&mode=iframe`;
-            return `<iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe>`;
+            return `<div class="video-container"><iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe></div>`;
         }
     );
 
     // Handle 3Speak audio URLs
     content = content.replace(
-        /https?:\/\/audio\.3speak\.tv\/play\?a=([^\s<>"']+)/g,
-        (match, audioId) => {
+        /<a[^>]*href="(https?:\/\/audio\.3speak\.tv\/play\?a=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
+        (match, fullUrl, audioId) => {
             const embedUrl = `https://audio.3speak.tv/play?a=${audioId}`;
             return `<iframe src="${embedUrl}" loading="lazy"></iframe>`;
         }
@@ -116,7 +116,7 @@ export default function markdownRenderer(markdown: string) {
 
     let safeHtmlStr = renderer.render(markdown);
     
-    // Transform 3Speak video/audio URLs to iframes
+    // Transform 3Speak video/audio URLs to iframes (AFTER rendering)
     safeHtmlStr = transform3SpeakContent(safeHtmlStr);
     
     // Transform IPFS iframes to video tags
