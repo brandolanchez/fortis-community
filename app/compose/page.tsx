@@ -1,10 +1,10 @@
 'use client'
 import { useAioha } from '@aioha/react-ui'
-import { KeyTypes } from '@aioha/aioha'
 import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button, useToast } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { generatePermlink, prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
+import { broadcastOperations } from '@/lib/hive/hivekeychain'
 import type { Beneficiary } from '@/components/compose/BeneficiariesInput'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
@@ -99,12 +99,13 @@ export default function Home() {
       // Prepare image array for metadata (first image becomes thumbnail)
       const imageArray = prepareImageArray(markdown)
       
-      // Create comment operation (author is auto-filled by Aioha from logged-in user)
+      // Create comment operation (Keychain needs author field)
       const commentOp = [
         'comment',
         {
           parent_author: '',
           parent_permlink: communityTag,
+          author: username,
           permlink: permlink,
           title: title,
           body: markdown,
@@ -114,12 +115,13 @@ export default function Home() {
             image: imageArray
           })
         }
-      ] as const;
+      ];
 
-      // Create comment_options operation with beneficiaries (author auto-filled by Aioha)
+      // Create comment_options operation with beneficiaries
       const optionsOp = [
         'comment_options',
         {
+          author: username,
           permlink: permlink,
           max_accepted_payout: '1000000.000 HBD',
           percent_hbd: 10000,
@@ -138,20 +140,16 @@ export default function Home() {
         }
       ] as const;
 
-      // Submit to Hive blockchain with beneficiaries
-      // Note: Aioha automatically fills in the 'author' field from the logged-in user
-      console.log('📤 Submitting to Hive:', { 
+      // Submit to Hive blockchain using Keychain directly
+      console.log('📤 Submitting to Hive via Keychain:', { 
         commentOp, 
         optionsOp,
-        loggedInUser: username
+        username
       });
-      const result = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting)
-      console.log('✅ Hive response:', result);
-
-      // Check if submission actually succeeded
-      if (!result || (result.success === false)) {
-        throw new Error(result?.error || 'Transaction failed - no response from blockchain')
-      }
+      
+      await broadcastOperations(username, [commentOp, optionsOp])
+      
+      console.log('✅ Post published successfully!');
 
       // If we get here, submission was successful
       toast({
