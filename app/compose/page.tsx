@@ -1,10 +1,10 @@
 'use client'
 import { useAioha } from '@aioha/react-ui'
+import { KeyTypes } from '@aioha/aioha'
 import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button, useToast } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { generatePermlink, prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
-import { broadcastOperations } from '@/lib/hive/hivekeychain'
 import type { Beneficiary } from '@/components/compose/BeneficiariesInput'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
@@ -99,8 +99,8 @@ export default function Home() {
       // Prepare image array for metadata (first image becomes thumbnail)
       const imageArray = prepareImageArray(markdown)
       
-      // Create comment operation (Keychain needs author field)
-      const commentOp: [string, any] = [
+      // Create comment operation (same as SnapComposer)
+      const commentOp = [
         'comment',
         {
           parent_author: '',
@@ -115,14 +115,14 @@ export default function Home() {
             image: imageArray
           })
         }
-      ];
+      ] as const;
 
       // Create comment_options operation with beneficiaries
       const sortedBeneficiaries = beneficiaries
         .sort((a, b) => a.account.localeCompare(b.account))
         .map(b => ({ account: b.account, weight: b.weight }));
 
-      const optionsOp: [string, any] = [
+      const optionsOp = [
         'comment_options',
         {
           author: username,
@@ -140,39 +140,43 @@ export default function Home() {
             ]
           ]
         }
-      ];
+      ] as const;
 
-      // Submit to Hive blockchain using Keychain directly
-      console.log('📤 Submitting to Hive via Keychain:', { 
+      // Submit to Hive blockchain using Aioha (same as SnapComposer)
+      console.log('📤 Submitting to Hive via Aioha:', { 
         commentOp, 
         optionsOp,
         username
       });
       
-      const result = await broadcastOperations(username, [commentOp, optionsOp])
+      const result = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting)
       
       console.log('✅ Post published successfully!', result);
 
-      // If we get here, submission was successful
-      toast({
-        title: 'Success!',
-        description: 'Your post has been published to Hive blockchain',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
+      // Check if submission was successful
+      if (result.success) {
+        toast({
+          title: 'Success!',
+          description: 'Your post has been published to Hive blockchain',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        })
 
-      // Clear form
-      setMarkdown('')
-      setTitle('')
-      setHashtags([])
-      setHashtagInput('')
-      setBeneficiaries([{ account: 'snapie', weight: 300 }]) // Reset to default
+        // Clear form
+        setMarkdown('')
+        setTitle('')
+        setHashtags([])
+        setHashtagInput('')
+        setBeneficiaries([{ account: 'snapie', weight: 300 }]) // Reset to default
 
-      // Redirect to post after short delay
-      setTimeout(() => {
-        window.location.href = `/@${user}/${permlink}`
-      }, 1500)
+        // Redirect to post after short delay
+        setTimeout(() => {
+          window.location.href = `/@${username}/${permlink}`
+        }, 1500)
+      } else {
+        throw new Error(result.errorMessage || 'Failed to publish post')
+      }
     } catch (error) {
       console.error('❌ Post submission error:', error)
       
@@ -180,20 +184,6 @@ export default function Home() {
       let errorMessage = 'Failed to publish post';
       
       if (error instanceof Error) {
-        // Ignore Aioha validation errors that happen after successful Keychain broadcast
-        if (error.message.includes('username') && error.message.includes('not allowed to be empty')) {
-          console.log('⚠️ Ignoring post-broadcast Aioha validation error')
-          // Treat as success
-          toast({
-            title: 'Success!',
-            description: 'Your post has been published to Hive blockchain',
-            status: 'success',
-            duration: 3000,
-            isClosable: true,
-          })
-          setIsSubmitting(false)
-          return
-        }
         errorMessage = error.message;
       } else if (typeof error === 'object' && error !== null) {
         // Try to extract error from various possible structures
