@@ -39,11 +39,6 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
 
     const processedMarkdown = processMarkdown(markdown);
     const renderedHtml = markdownRenderer(processedMarkdown);
-    
-    // Debug logging
-    console.log('📝 Markdown input:', markdown);
-    console.log('🔄 Processed markdown:', processedMarkdown);
-    console.log('🎨 Rendered HTML length:', renderedHtml.length);
 
     // Handle spoiler rendering after component mounts/updates
     useEffect(() => {
