@@ -124,12 +124,19 @@ export default function Home() {
       ] as const;
 
       // Submit to Hive blockchain with beneficiaries
-      await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting)
+      console.log('📤 Submitting to Hive:', { commentOp, optionsOp });
+      const result = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting)
+      console.log('✅ Hive response:', result);
+
+      // Check if submission actually succeeded
+      if (!result || (result.success === false)) {
+        throw new Error(result?.error || 'Transaction failed - no response from blockchain')
+      }
 
       // If we get here, submission was successful
       toast({
         title: 'Success!',
-        description: 'Your post has been published',
+        description: 'Your post has been published to Hive blockchain',
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -140,18 +147,31 @@ export default function Home() {
       setTitle('')
       setHashtags([])
       setHashtagInput('')
+      setBeneficiaries([{ account: 'snapie', weight: 300 }]) // Reset to default
 
       // Redirect to post after short delay
       setTimeout(() => {
         window.location.href = `/@${user}/${permlink}`
       }, 1500)
     } catch (error) {
-      console.error('Post submission error:', error)
+      console.error('❌ Post submission error:', error)
+      
+      // Extract useful error message
+      let errorMessage = 'Failed to publish post';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Try to extract error from various possible structures
+        const err = error as any;
+        errorMessage = err.error?.message || err.message || err.error || JSON.stringify(error);
+      }
+      
       toast({
         title: 'Submission Failed',
-        description: error instanceof Error ? error.message : 'Failed to publish post',
+        description: errorMessage,
         status: 'error',
-        duration: 5000,
+        duration: 7000,
         isClosable: true,
       })
     } finally {
