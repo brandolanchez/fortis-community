@@ -13,6 +13,37 @@ function transformIPFSContent(content: string): string {
     });
 }
 
+function transform3SpeakContent(content: string): string {
+    // Handle 3Speak watch URLs (legacy format)
+    content = content.replace(
+        /https?:\/\/play\.3speak\.tv\/watch\?v=([^\s<>"']+)/g,
+        (match, videoId) => {
+            const embedUrl = `https://play.3speak.tv/watch?v=${videoId}&mode=iframe`;
+            return `<iframe src="${embedUrl}" style="width: 100%; aspect-ratio: 16/9; border: none; border-radius: 8px; margin: 1em 0;" allowfullscreen></iframe>`;
+        }
+    );
+
+    // Handle 3Speak embed URLs (new format)
+    content = content.replace(
+        /https?:\/\/play\.3speak\.tv\/embed\?v=([^\s<>"']+)/g,
+        (match, videoId) => {
+            const embedUrl = `https://play.3speak.tv/embed?v=${videoId}&mode=iframe`;
+            return `<iframe src="${embedUrl}" style="width: 100%; aspect-ratio: 16/9; border: none; border-radius: 8px; margin: 1em 0;" allowfullscreen></iframe>`;
+        }
+    );
+
+    // Handle 3Speak audio URLs
+    content = content.replace(
+        /https?:\/\/audio\.3speak\.tv\/play\?a=([^\s<>"']+)/g,
+        (match, audioId) => {
+            const embedUrl = `https://audio.3speak.tv/play?a=${audioId}`;
+            return `<iframe src="${embedUrl}" style="width: 100%; height: 200px; border: none; border-radius: 8px; margin: 1em 0;"></iframe>`;
+        }
+    );
+
+    return content;
+}
+
 function preventIPFSDownloads(content: string): string {
     // Find links to IPFS content and add target="_blank" and safety attributes
     // This prevents the browser from trying to navigate to/download IPFS files
@@ -84,6 +115,9 @@ export default function markdownRenderer(markdown: string) {
     });
 
     let safeHtmlStr = renderer.render(markdown);
+    
+    // Transform 3Speak video/audio URLs to iframes
+    safeHtmlStr = transform3SpeakContent(safeHtmlStr);
     
     // Transform IPFS iframes to video tags
     safeHtmlStr = transformIPFSContent(safeHtmlStr);

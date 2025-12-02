@@ -70,6 +70,11 @@ export default function PostDetails({ post }: PostDetailsProps) {
                         display: 'block',
                         marginLeft: 'auto',
                         marginRight: 'auto'
+                    },
+                    '& iframe': {
+                        maxWidth: '100%',
+                        marginTop: '1em',
+                        marginBottom: '1em'
                     }
                 }}
             />
