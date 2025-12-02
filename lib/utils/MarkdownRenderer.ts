@@ -14,10 +14,18 @@ function transformIPFSContent(content: string): string {
 }
 
 function transform3SpeakContent(content: string): string {
+    // Track embedded video/audio IDs to prevent duplicates
+    const embeddedVideos = new Set<string>();
+    const embeddedAudios = new Set<string>();
+
     // Handle LEGACY 3speak.tv URLs (without play. subdomain) - convert to play.3speak.tv/watch
     content = content.replace(
         /<a[^>]*href="(https?:\/\/3speak\.tv\/watch\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
         (match, fullUrl, videoId) => {
+            if (embeddedVideos.has(videoId)) {
+                return match; // Keep as link if already embedded
+            }
+            embeddedVideos.add(videoId);
             const embedUrl = `https://play.3speak.tv/watch?v=${videoId}&mode=iframe`;
             return `<div class="video-container"><iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe></div>`;
         }
@@ -27,6 +35,10 @@ function transform3SpeakContent(content: string): string {
     content = content.replace(
         /<a[^>]*href="(https?:\/\/play\.3speak\.tv\/watch\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
         (match, fullUrl, videoId) => {
+            if (embeddedVideos.has(videoId)) {
+                return match; // Keep as link if already embedded
+            }
+            embeddedVideos.add(videoId);
             const embedUrl = `https://play.3speak.tv/watch?v=${videoId}&mode=iframe`;
             return `<div class="video-container"><iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe></div>`;
         }
@@ -36,6 +48,10 @@ function transform3SpeakContent(content: string): string {
     content = content.replace(
         /<a[^>]*href="(https?:\/\/play\.3speak\.tv\/embed\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
         (match, fullUrl, videoId) => {
+            if (embeddedVideos.has(videoId)) {
+                return match; // Keep as link if already embedded
+            }
+            embeddedVideos.add(videoId);
             const embedUrl = `https://play.3speak.tv/embed?v=${videoId}&mode=iframe`;
             return `<div class="video-container"><iframe src="${embedUrl}" allowfullscreen loading="lazy"></iframe></div>`;
         }
@@ -45,6 +61,10 @@ function transform3SpeakContent(content: string): string {
     content = content.replace(
         /<a[^>]*href="(https?:\/\/audio\.3speak\.tv\/play\?a=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
         (match, fullUrl, audioId) => {
+            if (embeddedAudios.has(audioId)) {
+                return match; // Keep as link if already embedded
+            }
+            embeddedAudios.add(audioId);
             const embedUrl = `https://audio.3speak.tv/play?a=${audioId}`;
             return `<iframe src="${embedUrl}" loading="lazy"></iframe>`;
         }
