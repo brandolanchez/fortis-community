@@ -76,8 +76,8 @@ export default function Home() {
       return
     }
 
-    // Additional check for empty username
-    const username = typeof user === 'string' ? user : user?.username || user?.name || '';
+    // Extract username from user object (can be string or object)
+    const username = typeof user === 'string' ? user : (user as any)?.username || (user as any)?.name || '';
     
     if (!username || username.trim() === '') {
       console.error('❌ Username is empty:', { user, username });
