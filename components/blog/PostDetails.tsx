@@ -1,4 +1,4 @@
-import { Box, Text, Avatar, Flex, Icon, Button, Link, Slider, SliderTrack, SliderFilledTrack, SliderThumb, SliderMark } from '@chakra-ui/react';
+import { Box, Text, Avatar, Flex, Icon, Button, Link, Slider, SliderTrack, SliderFilledTrack, SliderThumb, SliderMark, useToast } from '@chakra-ui/react';
 import React, { useState, useEffect } from 'react';
 import { Discussion } from '@hiveio/dhive';
 import { FaHeart, FaComment, FaRegHeart } from 'react-icons/fa';
@@ -18,16 +18,49 @@ export default function PostDetails({ post }: PostDetailsProps) {
     const [sliderValue, setSliderValue] = useState(100);
     const [showSlider, setShowSlider] = useState(false);
     const [voted, setVoted] = useState(post.active_votes?.some(item => item.voter === user));
+    const [voteCount, setVoteCount] = useState(post.active_votes?.length || 0);
     const payoutDisplay = useCurrencyDisplay(post);
+    const toast = useToast();
 
     function handleHeartClick() {
         setShowSlider(!showSlider);
     }
 
     async function handleVote() {
-        const vote = await aioha.vote(post.author, post.permlink, sliderValue * 100);
-        setVoted(vote.success);
+        // Optimistic update
+        const wasVoted = voted;
+        const previousCount = voteCount;
+        
+        setVoted(true);
+        setVoteCount(prev => prev + 1);
         handleHeartClick();
+        
+        // Send to blockchain
+        try {
+            const vote = await aioha.vote(post.author, post.permlink, sliderValue * 100);
+            
+            if (!vote.success) {
+                // Rollback on failure
+                setVoted(wasVoted);
+                setVoteCount(previousCount);
+                toast({
+                    title: 'Vote Failed',
+                    description: 'Failed to vote. Please try again.',
+                    status: 'error',
+                    duration: 3000,
+                });
+            }
+        } catch (error) {
+            // Rollback on error
+            setVoted(wasVoted);
+            setVoteCount(previousCount);
+            toast({
+                title: 'Vote Failed',
+                description: 'An error occurred. Please try again.',
+                status: 'error',
+                duration: 3000,
+            });
+        }
     }
 
     return (
@@ -118,7 +151,7 @@ export default function PostDetails({ post }: PostDetailsProps) {
                             <Icon as={FaRegHeart} onClick={handleHeartClick} cursor="pointer" />
                         )}
                         
-                        <Text ml={2} fontSize="sm">{post.active_votes.length}</Text>
+                        <Text ml={2} fontSize="sm">{voteCount}</Text>
                         <Icon as={FaComment} ml={4} />
                         <Text ml={2} fontSize="sm">{post.children}</Text>
                     </Flex>

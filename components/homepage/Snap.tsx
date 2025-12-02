@@ -23,6 +23,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
     const commentDate = getPostDate(comment.created);
     const { aioha, user } = useAioha();
     const [voted, setVoted] = useState(comment.active_votes?.some(item => item.voter === user))
+    const [voteCount, setVoteCount] = useState(comment.active_votes?.length || 0);
     const [sliderValue, setSliderValue] = useState(5);
     const [showSlider, setShowSlider] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -82,9 +83,40 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
     }
 
     async function handleVote() {
-        const vote = await aioha.vote(comment.author, comment.permlink, sliderValue * 100);
-        setVoted(vote.success);
+        // Optimistic update
+        const wasVoted = voted;
+        const previousCount = voteCount;
+        
+        setVoted(true);
+        setVoteCount(prev => prev + 1);
         handleHeartClick();
+        
+        // Send to blockchain
+        try {
+            const vote = await aioha.vote(comment.author, comment.permlink, sliderValue * 100);
+            
+            if (!vote.success) {
+                // Rollback on failure
+                setVoted(wasVoted);
+                setVoteCount(previousCount);
+                toast({
+                    title: 'Vote Failed',
+                    description: 'Failed to vote. Please try again.',
+                    status: 'error',
+                    duration: 3000,
+                });
+            }
+        } catch (error) {
+            // Rollback on error
+            setVoted(wasVoted);
+            setVoteCount(previousCount);
+            toast({
+                title: 'Vote Failed',
+                description: 'An error occurred. Please try again.',
+                status: 'error',
+                duration: 3000,
+            });
+        }
     }
 
     async function handleEditPost() {
@@ -216,7 +248,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
             ) : (
                 <HStack justify="space-between" mt={3}>
                     <Button leftIcon={voted ? (<FaHeart />) : (<FaRegHeart />)} variant="ghost" onClick={handleHeartClick}>
-                        {comment.active_votes?.length}
+                        {voteCount}
                     </Button>
                     <HStack spacing={4}>
                         {/* Reply button - opens reply modal */}
