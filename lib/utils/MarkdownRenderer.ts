@@ -95,7 +95,7 @@ export default function markdownRenderer(markdown: string) {
     safeHtmlStr = convertHiveUrlsToInternal(safeHtmlStr);
 
     // Sanitize with DOMPurify to prevent XSS attacks
-    // Configure DOMPurify to allow safe HTML tags while blocking dangerous ones
+    // Configure DOMPurify to allow safe HTML tags including iframes for embeds
     const cleanHtml = DOMPurify.sanitize(safeHtmlStr, {
         ALLOWED_TAGS: [
             // Text formatting
@@ -109,7 +109,7 @@ export default function markdownRenderer(markdown: string) {
             // Tables
             'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'col', 'colgroup',
             // Links and media
-            'a', 'img', 'video', 'source', 'audio',
+            'a', 'img', 'video', 'source', 'audio', 'iframe',
             // Other safe elements
             'hr', 'center', 'details', 'summary'
         ],
@@ -117,14 +117,14 @@ export default function markdownRenderer(markdown: string) {
             'href', 'src', 'alt', 'title', 'width', 'height',
             'class', 'id', 'style', 'target', 'rel',
             'controls', 'muted', 'preload', 'loading', 'autoplay', 'loop',
-            'type', 'allowfullscreen', 'frameborder',
+            'type', 'allowfullscreen', 'frameborder', 'allow', 'scrolling',
             'colspan', 'rowspan', 'align', 'valign',
             'start', 'reversed'
         ],
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|ipfs):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
         ALLOW_DATA_ATTR: false,
         ALLOW_UNKNOWN_PROTOCOLS: false,
-        FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'input', 'button', 'textarea', 'select', 'dialog', 'object', 'embed', 'applet', 'base', 'link', 'meta'],
+        FORBID_TAGS: ['script', 'form', 'input', 'button', 'textarea', 'select', 'dialog', 'object', 'embed', 'applet', 'base', 'link', 'meta'],
         FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onmousemove', 'onmouseenter', 'onmouseleave', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onkeypress'],
         KEEP_CONTENT: true,
         RETURN_TRUSTED_TYPE: false

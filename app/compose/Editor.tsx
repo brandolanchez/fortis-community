@@ -1,13 +1,15 @@
 'use client';
 import { getFileSignature, uploadImage } from '@/lib/hive/client-functions';
 import { FC, useRef, useState, useCallback, useEffect } from "react";
-import { Box, Flex, Button, useToast, Textarea, IconButton, HStack, Menu, MenuButton, MenuList, MenuItem, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, Tag, TagLabel, TagCloseButton, Wrap, WrapItem, useBreakpointValue } from '@chakra-ui/react';
-import { FaImage, FaEye, FaCode, FaBold, FaItalic, FaLink, FaListUl, FaListOl, FaQuoteLeft, FaUnderline, FaStrikethrough, FaHeading, FaChevronDown, FaTable, FaEyeSlash, FaSmile } from 'react-icons/fa';
+import { Box, Flex, Button, useToast, Textarea, IconButton, HStack, Menu, MenuButton, MenuList, MenuItem, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, Tag, TagLabel, TagCloseButton, Wrap, WrapItem, useBreakpointValue, Text } from '@chakra-ui/react';
+import { FaImage, FaEye, FaCode, FaBold, FaItalic, FaLink, FaListUl, FaListOl, FaQuoteLeft, FaUnderline, FaStrikethrough, FaHeading, FaChevronDown, FaTable, FaEyeSlash, FaSmile, FaCloudUploadAlt } from 'react-icons/fa';
 import { MdGif } from 'react-icons/md';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { processSpoilers } from '@/lib/utils/SpoilerRenderer';
 import GiphySelector from '@/components/homepage/GiphySelector';
 import { IGif } from '@giphy/js-types';
+import { useDropzone } from 'react-dropzone';
+import { compressImage } from '@/lib/utils/composeUtils';
 
 // Preview Content Component with Spoiler Support
 const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
@@ -36,6 +38,11 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
 
     const processedMarkdown = processMarkdown(markdown);
     const renderedHtml = markdownRenderer(processedMarkdown);
+    
+    // Debug logging
+    console.log('📝 Markdown input:', markdown);
+    console.log('🔄 Processed markdown:', processedMarkdown);
+    console.log('🎨 Rendered HTML length:', renderedHtml.length);
 
     // Handle spoiler rendering after component mounts/updates
     useEffect(() => {
@@ -72,7 +79,57 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
                 __html: renderedHtml
             }}
             sx={{
-                // Ensure code blocks are styled properly
+                // Base text styling
+                color: 'inherit',
+                fontSize: '16px',
+                lineHeight: '1.6',
+                '& > *': {
+                    marginBottom: '16px'
+                },
+                // Headings
+                'h1': {
+                    fontSize: '2em',
+                    fontWeight: 'bold',
+                    marginBottom: '0.5em',
+                    marginTop: '0.5em'
+                },
+                'h2': {
+                    fontSize: '1.5em',
+                    fontWeight: 'bold',
+                    marginBottom: '0.5em',
+                    marginTop: '0.5em'
+                },
+                'h3': {
+                    fontSize: '1.25em',
+                    fontWeight: 'bold',
+                    marginBottom: '0.5em',
+                    marginTop: '0.5em'
+                },
+                // Paragraphs
+                'p': {
+                    marginBottom: '1em',
+                    lineHeight: '1.6'
+                },
+                // Bold and italic
+                'strong, b': {
+                    fontWeight: 'bold'
+                },
+                'em, i': {
+                    fontStyle: 'italic'
+                },
+                // Underline
+                'u': {
+                    textDecoration: 'underline'
+                },
+                // Links
+                'a': {
+                    color: '#3182ce',
+                    textDecoration: 'underline',
+                    '&:hover': {
+                        color: '#2c5aa0'
+                    }
+                },
+                // Code blocks
                 'pre': {
                     backgroundColor: '#f6f8fa',
                     border: '1px solid #e1e4e8',
@@ -90,7 +147,7 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
                     fontFamily: 'Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                     fontSize: '85%'
                 },
-                // Ensure lists are styled properly
+                // Lists
                 'ul': {
                     paddingLeft: '2em',
                     marginBottom: '16px',
@@ -107,11 +164,7 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
                     marginBottom: '4px',
                     display: 'list-item'
                 },
-                // Ensure underline tags work properly
-                'u': {
-                    textDecoration: 'underline'
-                },
-                // Ensure blockquotes are styled properly
+                // Blockquotes
                 'blockquote': {
                     borderLeft: '4px solid #ddd',
                     paddingLeft: '16px',
@@ -126,6 +179,14 @@ const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
                 },
                 'blockquote p': {
                     margin: '0'
+                },
+                // Images
+                'img': {
+                    maxWidth: '100%',
+                    height: 'auto',
+                    borderRadius: '8px',
+                    marginTop: '1em',
+                    marginBottom: '1em'
                 }
             }}
         />
@@ -142,15 +203,17 @@ interface EditorProps {
   hashtags: string[];
   setHashtags: (hashtags: string[]) => void;
   onSubmit: () => void;
+  isSubmitting?: boolean;
 }
 
-const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hashtagInput, setHashtagInput, hashtags, setHashtags, onSubmit }) => {
+const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hashtagInput, setHashtagInput, hashtags, setHashtags, onSubmit, isSubmitting = false }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const toast = useToast();
     const isMobile = useBreakpointValue({ base: true, sm: false }, { ssr: false });
     const [viewMode, setViewMode] = useState<'editor' | 'preview' | 'split'>(isMobile ? 'editor' : 'split');
     const [spoilerStates, setSpoilerStates] = useState<{[key: string]: boolean}>({});
     const [isGiphyModalOpen, setGiphyModalOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     
     // Handle mobile changes - switch to editor if mobile and currently in split
     useEffect(() => {
@@ -158,6 +221,76 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
             setViewMode('editor');
         }
     }, [isMobile, viewMode]);
+
+    // Handle drag & drop image uploads
+    const onDrop = useCallback(async (acceptedFiles: File[]) => {
+        for (const file of acceptedFiles) {
+            try {
+                setIsUploading(true);
+                
+                toast({
+                    title: "Compressing and uploading...",
+                    description: `Processing ${file.name}`,
+                    status: "info",
+                    duration: 2000,
+                    isClosable: true,
+                });
+
+                // Compress image before upload
+                const compressedFile = await compressImage(file);
+                
+                // Get signature and upload to Hive
+                const signature = await getFileSignature(compressedFile);
+                const url = await uploadImage(compressedFile, signature);
+                
+                // Insert at cursor position
+                const textarea = textareaRef.current;
+                if (textarea) {
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const imageMarkdown = `![${file.name}](${url})`;
+                    const newMarkdown = markdown.substring(0, start) + imageMarkdown + markdown.substring(end);
+                    setMarkdown(newMarkdown);
+                    
+                    // Restore cursor position
+                    setTimeout(() => {
+                        textarea.focus();
+                        textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+                    }, 0);
+                } else {
+                    setMarkdown(markdown + (markdown ? '\n\n' : '') + `![${file.name}](${url})`);
+                }
+
+                toast({
+                    title: "Success!",
+                    description: `${file.name} uploaded successfully`,
+                    status: "success",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            } catch (error) {
+                console.error('Upload error:', error);
+                toast({
+                    title: "Upload Failed",
+                    description: `Failed to upload ${file.name}`,
+                    status: "error",
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsUploading(false);
+            }
+        }
+    }, [markdown, setMarkdown, toast]);
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop,
+        accept: {
+            'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+        },
+        noClick: true, // Don't open file picker on click
+        noKeyboard: true,
+    });
 
     // Custom image upload handler
     const handleImageUpload = useCallback(async (file: File): Promise<string> => {
@@ -242,14 +375,20 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
             if (file) {
                 try {
                     toast({
-                        title: "Uploading...",
-                        description: "Please wait while we upload your image.",
+                        title: "Compressing and uploading...",
+                        description: "Please wait while we process your image.",
                         status: "info",
                         duration: 2000,
                         isClosable: true,
                     });
                     
-                    const url = await handleImageUpload(file);
+                    // Compress image
+                    const compressedFile = await compressImage(file);
+                    
+                    // Get signature and upload
+                    const signature = await getFileSignature(compressedFile);
+                    const url = await uploadImage(compressedFile, signature);
+                    
                     insertMarkdown(`![${file.name}](${url})`);
 
                     toast({
@@ -260,7 +399,14 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                         isClosable: true,
                     });
                 } catch (error) {
-                    // Error handled in handleImageUpload
+                    console.error('Image upload failed:', error);
+                    toast({
+                        title: "Upload Failed",
+                        description: error instanceof Error ? error.message : "Failed to upload image",
+                        status: "error",
+                        duration: 3000,
+                        isClosable: true,
+                    });
                 }
             }
         };
@@ -332,7 +478,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                             border="1px solid"
                             borderColor="border"
                             borderRadius="md"
-                            bg="muted"
+                            bg="background"
                         >
                             <Input
                                 placeholder="Enter post title"
@@ -345,7 +491,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 fontSize="lg"
                                 px={3}
                                 py={2}
-                                bg="muted"
+                                bg="background"
                                 color="text"
                                 _focus={{ boxShadow: 'none', borderColor: 'primary' }}
                                 _placeholder={{ color: 'gray.500' }}
@@ -360,10 +506,10 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                             borderRadius="md"
                             display="flex"
                             flexDirection="column"
-                            bg="muted"
+                            bg="background"
                     >
                         <Box 
-                            bg="muted" 
+                            bg="secondary" 
                             px={3} 
                             py={2} 
                             borderBottom="1px solid" 
@@ -384,26 +530,27 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                     px={2}
                                     fontSize="sm"
                                     fontWeight="bold"
+                                    color="white"
                                 >
                                     H
                                 </MenuButton>
-                                <MenuList>
-                                    <MenuItem onClick={handleHeader1} fontSize="xl" fontWeight="bold">
+                                <MenuList bg="secondary" borderColor="border">
+                                    <MenuItem onClick={handleHeader1} fontSize="xl" fontWeight="bold" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H1 - Large Heading
                                     </MenuItem>
-                                    <MenuItem onClick={handleHeader2} fontSize="lg" fontWeight="bold">
+                                    <MenuItem onClick={handleHeader2} fontSize="lg" fontWeight="bold" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H2 - Medium Heading
                                     </MenuItem>
-                                    <MenuItem onClick={handleHeader3} fontSize="md" fontWeight="bold">
+                                    <MenuItem onClick={handleHeader3} fontSize="md" fontWeight="bold" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H3 - Small Heading
                                     </MenuItem>
-                                    <MenuItem onClick={handleHeader4} fontSize="sm" fontWeight="bold">
+                                    <MenuItem onClick={handleHeader4} fontSize="sm" fontWeight="bold" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H4 - Extra Small
                                     </MenuItem>
-                                    <MenuItem onClick={handleHeader5} fontSize="xs" fontWeight="bold">
+                                    <MenuItem onClick={handleHeader5} fontSize="xs" fontWeight="bold" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H5 - Tiny
                                     </MenuItem>
-                                    <MenuItem onClick={handleHeader6} fontSize="xs" fontWeight="normal">
+                                    <MenuItem onClick={handleHeader6} fontSize="xs" fontWeight="normal" bg="secondary" color="text" _hover={{ bg: "muted" }}>
                                         H6 - Minimal
                                     </MenuItem>
                                 </MenuList>
@@ -415,6 +562,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleBold}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Italic"
@@ -422,6 +570,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleItalic}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Underline"
@@ -429,6 +578,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleUnderline}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Strikethrough"
@@ -436,6 +586,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleStrikethrough}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Link"
@@ -443,6 +594,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleLink}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Bullet List"
@@ -450,6 +602,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleBulletList}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Numbered List"
@@ -457,6 +610,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleNumberedList}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Quote"
@@ -464,6 +618,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleQuote}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Code Block"
@@ -471,6 +626,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleCodeBlock}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Table"
@@ -478,6 +634,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleTable}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Spoiler"
@@ -485,6 +642,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleSpoiler}
+                                color="white"
                             />
                             {/* Emoji Picker */}
                             <Menu>
@@ -494,8 +652,9 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                     icon={<FaSmile />}
                                     size="xs"
                                     variant="ghost"
+                                    color="white"
                                 />
-                                <MenuList maxH="200px" overflowY="auto" display="grid" gridTemplateColumns="repeat(6, 1fr)" gap={1} p={2}>
+                                <MenuList maxH="200px" overflowY="auto" display="grid" gridTemplateColumns="repeat(6, 1fr)" gap={1} p={2} bg="secondary" borderColor="border">
                                     {commonEmojis.map((emoji, index) => (
                                         <MenuItem
                                             key={index}
@@ -520,6 +679,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={() => setGiphyModalOpen(!isGiphyModalOpen)}
+                                color="white"
                             />
                             <IconButton
                                 aria-label="Upload Image"
@@ -527,27 +687,71 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="xs"
                                 variant="ghost"
                                 onClick={handleImageClick}
+                                color="white"
                             />
                         </Box>
-                        <Textarea
-                            ref={textareaRef}
-                            value={markdown}
-                            onChange={(e) => setMarkdown(e.target.value)}
-                            placeholder="Write your markdown here..."
-                            className="markdown-editor"
-                            border="none"
-                            borderRadius="0"
-                            resize="none"
-                            flex="1"
-                            fontFamily="mono"
-                            fontSize="sm"
-                            p={4}
-                            bg="muted"
-                            color="text"
-                            overflowY="auto"
-                            _focus={{ boxShadow: 'none' }}
-                            _placeholder={{ color: 'gray.500' }}
-                        />
+                        <Box {...getRootProps()} position="relative" flex="1">
+                            <input {...getInputProps()} />
+                            <Textarea
+                                ref={textareaRef}
+                                value={markdown}
+                                onChange={(e) => setMarkdown(e.target.value)}
+                                placeholder="Write your markdown here... (or drag & drop images)"
+                                className="markdown-editor"
+                                border="none"
+                                borderRadius="0"
+                                resize="none"
+                                h="100%"
+                                fontFamily="mono"
+                                fontSize="sm"
+                                p={4}
+                                bg="transparent"
+                                color="inherit"
+                                overflowY="auto"
+                                _focus={{ boxShadow: 'none' }}
+                                _placeholder={{ color: 'gray.500' }}
+                            />
+                            {isDragActive && (
+                                <Flex
+                                    position="absolute"
+                                    top="0"
+                                    left="0"
+                                    right="0"
+                                    bottom="0"
+                                    bg="rgba(0, 123, 255, 0.1)"
+                                    border="2px dashed"
+                                    borderColor="blue.400"
+                                    borderRadius="md"
+                                    align="center"
+                                    justify="center"
+                                    pointerEvents="none"
+                                    zIndex="10"
+                                >
+                                    <Box textAlign="center">
+                                        <FaCloudUploadAlt size={48} color="#3182CE" />
+                                        <Text mt={2} fontSize="lg" fontWeight="bold" color="blue.400">
+                                            Drop images here
+                                        </Text>
+                                    </Box>
+                                </Flex>
+                            )}
+                            {isUploading && (
+                                <Flex
+                                    position="absolute"
+                                    top="50%"
+                                    left="50%"
+                                    transform="translate(-50%, -50%)"
+                                    bg="blackAlpha.700"
+                                    color="white"
+                                    px={6}
+                                    py={3}
+                                    borderRadius="md"
+                                    zIndex="20"
+                                >
+                                    <Text>Uploading...</Text>
+                                </Flex>
+                            )}
+                        </Box>
                         </Box>
                         
                         {/* Hashtag Section */}
@@ -555,7 +759,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                             border="1px solid"
                             borderColor="border"
                             borderRadius="md"
-                            bg="muted"
+                            bg="background"
                         >
                             {/* Hashtag Input */}
                             <Input
@@ -568,7 +772,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 borderRadius="md"
                                 px={4}
                                 py={2}
-                                bg="muted"
+                                bg="background"
                                 color="text"
                                 _focus={{ boxShadow: 'none', borderColor: 'primary' }}
                                 _placeholder={{ color: 'gray.500' }}
@@ -600,8 +804,11 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                 size="sm"
                                 colorScheme="blue"
                                 onClick={onSubmit}
+                                isLoading={isSubmitting}
+                                loadingText="Publishing..."
+                                isDisabled={isSubmitting || !title.trim() || !markdown.trim()}
                             >
-                                Submit
+                                Publish Post
                             </Button>
                         </Flex>
                     </Box>
@@ -617,10 +824,10 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                         borderRadius="md"
                         display="flex"
                         flexDirection="column"
-                        bg="muted"
+                        bg="background"
                     >
                         <Box 
-                            bg="muted" 
+                            bg="secondary" 
                             px={3} 
                             py={2} 
                             borderBottom="1px solid" 

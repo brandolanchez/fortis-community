@@ -1,8 +1,9 @@
 'use client'
 import { useAioha } from '@aioha/react-ui'
-import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button } from '@chakra-ui/react'
+import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button, useToast } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
+import { generatePermlink, prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
 
@@ -11,8 +12,10 @@ export default function Home() {
   const [title, setTitle] = useState("")
   const [hashtagInput, setHashtagInput] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { aioha } = useAioha()
+  const { aioha, user } = useAioha()
+  const toast = useToast()
   const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'blog'
 
   const handleHashtagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -31,8 +34,96 @@ export default function Home() {
   }
 
   async function handleSubmit() {
-    const permlink = title.replaceAll(" ", "-")
-    await aioha.comment(null, communityTag, permlink, title, markdown, { tags: hashtags, app: 'mycommunity' });
+    // Validation
+    const titleValidation = validateTitle(title)
+    if (!titleValidation.valid) {
+      toast({
+        title: 'Invalid Title',
+        description: titleValidation.error,
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    const contentValidation = validateContent(markdown)
+    if (!contentValidation.valid) {
+      toast({
+        title: 'Invalid Content',
+        description: contentValidation.error,
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    if (!user) {
+      toast({
+        title: 'Not Logged In',
+        description: 'Please log in to publish a post',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Generate Hive-compatible permlink
+      const permlink = generatePermlink(title)
+      
+      // Prepare image array for metadata (first image becomes thumbnail)
+      const imageArray = prepareImageArray(markdown)
+      
+      // Submit to Hive blockchain
+      await aioha.comment(
+        null, 
+        communityTag, 
+        permlink, 
+        title, 
+        markdown, 
+        { 
+          tags: hashtags, 
+          app: 'Snapie.io',
+          image: imageArray
+        }
+      )
+
+      // If we get here, submission was successful
+      toast({
+        title: 'Success!',
+        description: 'Your post has been published',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      })
+
+      // Clear form
+      setMarkdown('')
+      setTitle('')
+      setHashtags([])
+      setHashtagInput('')
+
+      // Redirect to post after short delay
+      setTimeout(() => {
+        window.location.href = `/@${user}/${permlink}`
+      }, 1500)
+    } catch (error) {
+      console.error('Post submission error:', error)
+      toast({
+        title: 'Submission Failed',
+        description: error instanceof Error ? error.message : 'Failed to publish post',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -65,6 +156,7 @@ export default function Home() {
           hashtags={hashtags}
           setHashtags={setHashtags}
           onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
         />
       </Flex>
     </Flex>

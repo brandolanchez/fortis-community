@@ -35,3 +35,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# reference docs (local only)
+SKATEHIVE_COMPOSER_REFERENCE.md
