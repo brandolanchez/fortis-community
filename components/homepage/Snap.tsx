@@ -275,7 +275,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                         )}
                         <HStack spacing={1} cursor="pointer" onClick={handleReSnap}>
                             <FaRetweet />
-                            <Text fontSize="sm">Re-Snap</Text>
+                            <Text fontSize="sm">Re-Snap/Share</Text>
                         </HStack>
                         {canEdit && (
                             <HStack spacing={1} cursor="pointer" onClick={() => setIsEditModalOpen(true)}>

@@ -1,7 +1,7 @@
 import { Box, Text, Avatar, Flex, Icon, Button, Link, Slider, SliderTrack, SliderFilledTrack, SliderThumb, SliderMark, useToast } from '@chakra-ui/react';
 import React, { useState, useEffect } from 'react';
 import { Discussion } from '@hiveio/dhive';
-import { FaHeart, FaComment, FaRegHeart } from 'react-icons/fa';
+import { FaHeart, FaComment, FaRegHeart, FaShare } from 'react-icons/fa';
 import { getPostDate } from '@/lib/utils/GetPostDate';
 import { useAioha } from '@aioha/react-ui';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
@@ -24,6 +24,18 @@ export default function PostDetails({ post }: PostDetailsProps) {
 
     function handleHeartClick() {
         setShowSlider(!showSlider);
+    }
+
+    function handleShare() {
+        // Copy post URL to clipboard
+        const postUrl = `${window.location.origin}/@${author}/${post.permlink}`;
+        navigator.clipboard.writeText(postUrl);
+        toast({
+            title: 'Link Copied!',
+            description: 'Post link copied to clipboard. Share it anywhere!',
+            status: 'success',
+            duration: 3000,
+        });
     }
 
     async function handleVote() {
@@ -154,6 +166,7 @@ export default function PostDetails({ post }: PostDetailsProps) {
                         <Text ml={2} fontSize="sm">{voteCount}</Text>
                         <Icon as={FaComment} ml={4} />
                         <Text ml={2} fontSize="sm">{post.children}</Text>
+                        <Icon as={FaShare} ml={4} cursor="pointer" onClick={handleShare} />
                     </Flex>
                     <Text fontWeight="bold" fontSize="sm">
                         {payoutDisplay}
