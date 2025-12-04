@@ -97,9 +97,11 @@ export default function PostDetails({ post }: PostDetailsProps) {
                 mt={4} 
                 dangerouslySetInnerHTML={{ __html: markdownRenderer(body) }}
                 sx={{
+                    textAlign: 'left',  // Base alignment for all content
                     '& p': {
                         marginBottom: '1em',
-                        lineHeight: '1.6'
+                        lineHeight: '1.6',
+                        textAlign: 'inherit'
                     },
                     '& img': {
                         marginTop: '1em',
@@ -108,6 +110,12 @@ export default function PostDetails({ post }: PostDetailsProps) {
                         height: 'auto'
                     },
                     '& center': {
+                        marginTop: '1em',
+                        marginBottom: '1em',
+                        display: 'block',
+                        textAlign: 'center'
+                    },
+                    '& hr': {
                         marginTop: '1em',
                         marginBottom: '1em'
                     },
@@ -119,7 +127,8 @@ export default function PostDetails({ post }: PostDetailsProps) {
                     '& .video-container': {
                         width: '100%',
                         marginTop: '1em',
-                        marginBottom: '1em'
+                        marginBottom: '1em',
+                        textAlign: 'left'
                     },
                     '& .video-container iframe': {
                         width: '100%',

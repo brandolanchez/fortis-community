@@ -18,6 +18,16 @@ function transform3SpeakContent(content: string): string {
     const embeddedVideos = new Set<string>();
     const embeddedAudios = new Set<string>();
 
+    // First, fix malformed center tags from DefaultRenderer
+    // DefaultRenderer sometimes produces: <p><center>...content...<hr />...more content...</center></p>
+    // We need to close center before <hr> and not reopen it
+    content = content.replace(
+        /<p><center>([\s\S]*?)<hr \/>([\s\S]*?)<\/center><\/p>/gi,
+        (match, beforeHr, afterHr) => {
+            return `<center>${beforeHr.trim()}</center><hr />${afterHr.trim()}`;
+        }
+    );
+
     // Handle LEGACY 3speak.tv URLs (without play. subdomain) - convert to play.3speak.tv/watch
     content = content.replace(
         /<a[^>]*href="(https?:\/\/3speak\.tv\/watch\?v=([^"&]+)[^"]*)"[^>]*>.*?<\/a>/g,
@@ -66,7 +76,7 @@ function transform3SpeakContent(content: string): string {
             }
             embeddedAudios.add(audioId);
             const embedUrl = `https://audio.3speak.tv/play?a=${audioId}`;
-            return `<iframe src="${embedUrl}" loading="lazy"></iframe>`;
+            return `<div class="audio-container"><iframe src="${embedUrl}" loading="lazy"></iframe></div>`;
         }
     );
 
