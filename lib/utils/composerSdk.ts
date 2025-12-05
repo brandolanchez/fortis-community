@@ -1,170 +1,96 @@
 /**
  * Snapie Composer SDK Integration
  * 
- * This file demonstrates how to use @snapie/composer SDK with the existing SnapComposer.
- * The SDK provides auth-agnostic utilities that can work with any authentication method.
+ * Pre-configured composer instance for Snapie.io using @snapie/composer SDK.
  * 
  * @example
  * ```typescript
- * import { snapieComposer, buildSnapOperations } from './composerSdk';
+ * import { snapieComposer } from '@/lib/utils/composerSdk';
  * 
- * // Build operations for a new snap
- * const result = await buildSnapOperations({
+ * const result = snapieComposer.build({
  *   author: 'username',
  *   body: 'Hello Hive! #test',
+ *   parentAuthor: '',
  *   parentPermlink: 'snaps-container-permlink',
- *   images: ['https://images.hive.blog/...'],
- *   videoEmbedUrl: 'https://play.3speak.tv/embed?v=...'
  * });
  * 
- * // Broadcast with Aioha (or any auth method)
+ * // Broadcast with Aioha
  * await aioha.signAndBroadcastTx(result.operations, KeyTypes.Posting);
  * ```
  */
 
+// Core composer (no video/audio dependencies)
 import { 
-    createSnapComposer, 
+    createComposer,
     generatePermlink,
     extractHashtags,
     appendMediaToBody,
     buildCommentOperation,
     buildCommentOptionsOperation,
-    uploadVideoTo3Speak,
-    extractVideoThumbnail,
-    uploadToIPFS,
-    set3SpeakThumbnail,
-    extractVideoIdFromEmbedUrl,
     type CommentInput,
     type ComposerResult,
-    type VideoProgressCallback,
     type Beneficiary
 } from '@snapie/composer';
 
-import { getFileSignature, uploadImage } from '@/lib/hive/client-functions';
+// Video module (optional - only imported where needed)
+export {
+    uploadVideoTo3Speak,
+    uploadVideoWithThumbnail,
+    extractVideoThumbnail,
+    extractVideoIdFromEmbedUrl,
+    set3SpeakThumbnail,
+    uploadToIPFS,
+    type VideoUploadOptions,
+    type VideoUploadResult,
+    type VideoProgressCallback
+} from '@snapie/composer/video';
+
+// Audio module (optional - only imported where needed)
+export {
+    uploadAudioTo3Speak,
+    createAudioRecorder,
+    extractAudioIdFromPlayUrl,
+    type AudioUploadOptions,
+    type AudioUploadResult,
+    type AudioProgressCallback
+} from '@snapie/composer/audio';
 
 // ============================================================================
-// Configured Composer Instance
+// Snapie.io Configured Composer
 // ============================================================================
 
 /**
  * Pre-configured composer instance for Snapie.io
- * 
- * This includes:
- * - Default tags for the snaps community
- * - 3Speak API integration
- * - Image upload via Hive's image service
  */
-export const snapieComposer = createSnapComposer({
+export const snapieComposer = createComposer({
     appName: 'mycommunity',
-    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '', 'snaps'],
-    threeSpeakApiKey: process.env.NEXT_PUBLIC_3SPEAK_API_KEY,
-    
-    // Custom image upload function using Hive's image service
-    uploadImage: async (file: File, onProgress?: (progress: number) => void) => {
-        const signature = await getFileSignature(file);
-        // Note: uploadImage from client-functions uses setUploadProgress which is a React setState
-        // For SDK usage, we provide a simpler progress callback
-        return uploadImage(file, signature);
-    }
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '', 'snaps'].filter(Boolean),
 });
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
 /**
- * Build operations for a snap post (simplified interface)
+ * Composer with 10% beneficiaries for video posts
  */
-export async function buildSnapOperations(input: {
-    author: string;
-    body: string;
-    parentPermlink: string;
-    images?: string[];
-    gifUrl?: string;
-    videoEmbedUrl?: string;
-    audioEmbedUrl?: string;
-    tags?: string[];
-    /** Include beneficiaries (e.g., for video posts) */
-    withBeneficiaries?: Beneficiary[];
-}): Promise<ComposerResult> {
-    return snapieComposer.buildOperations({
-        author: input.author,
-        body: input.body,
-        parentAuthor: '',
-        parentPermlink: input.parentPermlink,
-        images: input.images,
-        gifUrl: input.gifUrl,
-        videoEmbedUrl: input.videoEmbedUrl,
-        audioEmbedUrl: input.audioEmbedUrl,
-        tags: input.tags,
-        beneficiaries: input.withBeneficiaries
-    });
-}
-
-/**
- * Upload video with thumbnail generation
- */
-export async function uploadSnapVideo(
-    file: File,
-    owner: string,
-    onProgress?: VideoProgressCallback
-): Promise<{
-    embedUrl: string;
-    videoId: string;
-    thumbnailUrl?: string;
-}> {
-    // Upload video
-    const videoResult = await snapieComposer.uploadVideo(file, owner, onProgress);
-    
-    // Try to generate and upload thumbnail
-    let thumbnailUrl: string | undefined;
-    try {
-        thumbnailUrl = await snapieComposer.uploadThumbnail(file);
-        
-        // Set the thumbnail on 3Speak
-        if (videoResult.videoId && thumbnailUrl) {
-            await snapieComposer.setVideoThumbnail(videoResult.videoId, thumbnailUrl);
-        }
-    } catch (error) {
-        console.warn('Thumbnail generation/upload failed:', error);
-    }
-    
-    return {
-        ...videoResult,
-        thumbnailUrl
-    };
-}
-
-/**
- * Upload multiple images
- */
-export async function uploadSnapImages(
-    files: File[],
-    onProgress?: (index: number, progress: number) => void
-): Promise<string[]> {
-    return snapieComposer.uploadImages(files, onProgress);
-}
+export const snapieVideoComposer = createComposer({
+    appName: 'mycommunity',
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '', 'snaps'].filter(Boolean),
+    beneficiaries: [{ account: 'snapie', weight: 1000 }], // 10%
+});
 
 // ============================================================================
 // Re-exports for convenience
 // ============================================================================
 
 export {
+    createComposer,
     generatePermlink,
     extractHashtags,
     appendMediaToBody,
     buildCommentOperation,
-    buildCommentOptionsOperation,
-    uploadVideoTo3Speak,
-    extractVideoThumbnail,
-    uploadToIPFS,
-    set3SpeakThumbnail,
-    extractVideoIdFromEmbedUrl
+    buildCommentOptionsOperation
 };
 
 export type {
     CommentInput,
     ComposerResult,
-    VideoProgressCallback,
     Beneficiary
 };

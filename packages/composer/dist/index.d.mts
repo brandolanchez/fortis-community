@@ -2,59 +2,12 @@ import { Operation, CommentOperation, CommentOptionsOperation } from '@hiveio/dh
 export { CommentOperation, CommentOptionsOperation, Operation } from '@hiveio/dhive';
 
 /**
- * @snapie/composer
+ * @snapie/composer - Core Module
  *
- * A headless, auth-agnostic composer SDK for Hive blockchain posts and comments.
- *
- * This package handles:
- * - Building post/comment content with media embeds
- * - Generating Hive blockchain operations
- * - 3Speak video upload integration
- * - Image upload utilities
- *
- * It does NOT handle:
- * - Authentication (use any auth method: Aioha, Keychain, HiveSigner, etc.)
- * - UI/UX (bring your own React/Vue/Svelte components)
- * - Signing/broadcasting (handled via callbacks)
- *
- * @example
- * ```typescript
- * import { createSnapComposer, buildCommentOperation } from '@snapie/composer';
- *
- * const composer = createSnapComposer({ appName: 'my-app' });
- *
- * const operations = await composer.buildOperations({
- *   author: 'username',
- *   body: 'Hello Hive!',
- *   images: ['https://...'],
- *   parentAuthor: '',
- *   parentPermlink: 'snaps-container'
- * });
- *
- * // Submit with your preferred auth method
- * await myAuthMethod.broadcast(operations);
- * ```
+ * Core utilities for building Hive blockchain operations.
+ * This module has no external dependencies beyond @hiveio/dhive types.
  */
 
-/**
- * Configuration options for the composer
- */
-interface ComposerOptions {
-    /** Application name for json_metadata (default: "snapie") */
-    appName?: string;
-    /** Default tags to include in posts */
-    defaultTags?: string[];
-    /** 3Speak API key for video uploads */
-    threeSpeakApiKey?: string;
-    /** IPFS upload endpoint for thumbnails */
-    ipfsUploadEndpoint?: string;
-    /** Image upload function - must be provided for image support */
-    uploadImage?: (file: File, onProgress?: (progress: number) => void) => Promise<string>;
-    /** Beneficiaries configuration */
-    beneficiaries?: Beneficiary[];
-    /** Whether to require beneficiaries on video posts (default: false) */
-    requireBeneficiariesOnVideo?: boolean;
-}
 /**
  * Beneficiary recipient for post rewards
  */
@@ -64,7 +17,7 @@ interface Beneficiary {
     weight: number;
 }
 /**
- * Input for building a comment/post
+ * Input for building a comment/post operation
  */
 interface CommentInput {
     /** Author's Hive username */
@@ -83,7 +36,7 @@ interface CommentInput {
     images?: string[];
     /** GIF URL to append to body */
     gifUrl?: string;
-    /** 3Speak video embed URL */
+    /** Video embed URL (3Speak, YouTube, etc.) */
     videoEmbedUrl?: string;
     /** Audio embed URL */
     audioEmbedUrl?: string;
@@ -91,7 +44,7 @@ interface CommentInput {
     tags?: string[];
     /** Custom json_metadata fields */
     metadata?: Record<string, unknown>;
-    /** Override beneficiaries for this specific post */
+    /** Beneficiaries for this post */
     beneficiaries?: Beneficiary[];
     /** Max accepted payout (default: "1000000.000 HBD") */
     maxAcceptedPayout?: string;
@@ -116,15 +69,15 @@ interface ComposerResult {
     metadata: Record<string, unknown>;
 }
 /**
- * Video upload progress callback
+ * Configuration for the composer
  */
-type VideoProgressCallback = (progress: number, status: 'uploading' | 'processing' | 'complete' | 'error') => void;
-/**
- * Video upload result
- */
-interface VideoUploadResult {
-    embedUrl: string;
-    videoId: string;
+interface ComposerConfig {
+    /** Application name for json_metadata (default: "snapie") */
+    appName?: string;
+    /** Default tags to include in posts */
+    defaultTags?: string[];
+    /** Default beneficiaries for all posts */
+    beneficiaries?: Beneficiary[];
 }
 /**
  * Generate a unique permlink from current timestamp
@@ -179,84 +132,34 @@ declare function buildCommentOptionsOperation(input: {
     beneficiaries?: Beneficiary[];
 }): CommentOptionsOperation;
 /**
- * Upload a video to 3Speak using TUS protocol
- *
- * @param file - Video file to upload
- * @param options - Upload options
- * @returns Promise resolving to embed URL
- */
-declare function uploadVideoTo3Speak(file: File, options: {
-    apiKey: string;
-    owner: string;
-    appName?: string;
-    onProgress?: VideoProgressCallback;
-}): Promise<VideoUploadResult>;
-/**
- * Extract video ID from 3Speak embed URL
- *
- * @example
- * // Input: "https://play.3speak.tv/embed?v=username/abc123"
- * // Output: "abc123"
- */
-declare function extractVideoIdFromEmbedUrl(embedUrl: string): string | null;
-/**
- * Set thumbnail for a 3Speak video
- */
-declare function set3SpeakThumbnail(videoId: string, thumbnailUrl: string, apiKey: string): Promise<void>;
-/**
- * Upload a file to IPFS (3Speak supernode)
- */
-declare function uploadToIPFS(file: File | Blob, endpoint?: string): Promise<string>;
-/**
- * Extract a thumbnail frame from a video file
- *
- * @param file - Video file
- * @param seekTime - Time in seconds to capture frame (default: 0.5)
- * @returns Promise resolving to thumbnail blob
- */
-declare function extractVideoThumbnail(file: File, seekTime?: number): Promise<Blob>;
-/**
  * Create a configured composer instance
  *
  * @example
  * ```typescript
- * const composer = createSnapComposer({
+ * import { createComposer } from '@snapie/composer';
+ *
+ * const composer = createComposer({
  *   appName: 'my-app',
+ *   defaultTags: ['my-app'],
  *   beneficiaries: [{ account: 'my-app', weight: 500 }] // 5%
  * });
  *
- * const result = await composer.buildOperations({
+ * const result = composer.build({
  *   author: 'user',
  *   body: 'Hello!',
  *   parentAuthor: '',
- *   parentPermlink: 'snaps'
+ *   parentPermlink: 'hive-123456'
  * });
  *
  * // Broadcast with any auth method
  * await myAuth.broadcast(result.operations);
  * ```
  */
-declare function createSnapComposer(options?: ComposerOptions): {
+declare function createComposer(config?: ComposerConfig): {
     /**
      * Build operations for a comment/post
      */
-    buildOperations(input: CommentInput): ComposerResult;
-    /**
-     * Upload a video to 3Speak
-     */
-    uploadVideo(file: File, owner: string, onProgress?: VideoProgressCallback): Promise<VideoUploadResult>;
-    /**
-     * Extract and upload a video thumbnail
-     */
-    uploadThumbnail(videoFile: File, uploadFn?: (blob: Blob) => Promise<string>): Promise<string>;
-    /**
-     * Set video thumbnail via 3Speak API
-     */
-    setVideoThumbnail(videoId: string, thumbnailUrl: string): Promise<void>;
-    /**
-     * Upload images (requires uploadImage function in config)
-     */
-    uploadImages(files: File[], onProgress?: (index: number, progress: number) => void): Promise<string[]>;
+    build(input: CommentInput): ComposerResult;
 };
 
-export { type Beneficiary, type CommentInput, type ComposerOptions, type ComposerResult, type VideoProgressCallback, type VideoUploadResult, appendMediaToBody, buildCommentOperation, buildCommentOptionsOperation, createSnapComposer, extractHashtags, extractVideoIdFromEmbedUrl, extractVideoThumbnail, generatePermlink, imageToMarkdown, imagesToMarkdown, set3SpeakThumbnail, uploadToIPFS, uploadVideoTo3Speak };
+export { type Beneficiary, type CommentInput, type ComposerConfig, type ComposerResult, appendMediaToBody, buildCommentOperation, buildCommentOptionsOperation, createComposer, extractHashtags, generatePermlink, imageToMarkdown, imagesToMarkdown };

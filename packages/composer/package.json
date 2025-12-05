@@ -1,7 +1,7 @@
 {
   "name": "@snapie/composer",
   "version": "0.1.0",
-  "description": "Headless composer utilities for Hive blockchain posts and comments with media support",
+  "description": "Headless composer utilities for Hive blockchain posts and comments with optional media support",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -10,6 +10,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./video": {
+      "types": "./dist/video.d.ts",
+      "import": "./dist/video.mjs",
+      "require": "./dist/video.js"
+    },
+    "./audio": {
+      "types": "./dist/audio.d.ts",
+      "import": "./dist/audio.mjs",
+      "require": "./dist/audio.js"
     }
   },
   "files": [
@@ -32,15 +42,19 @@
   "author": "Mantequilla-Soft",
   "license": "MIT",
   "peerDependencies": {
-    "@hiveio/dhive": "^1.3.0"
-  },
-  "dependencies": {
+    "@hiveio/dhive": "^1.3.0",
     "tus-js-client": "^4.3.0"
+  },
+  "peerDependenciesMeta": {
+    "tus-js-client": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@hiveio/dhive": "1.3.1-beta",
     "@types/node": "^20",
     "tsup": "^8.5.1",
+    "tus-js-client": "^4.3.0",
     "typescript": "^5.5.4"
   }
 }
