@@ -12,6 +12,9 @@ import { useDropzone } from 'react-dropzone';
 import { compressImage } from '@/lib/utils/composeUtils';
 import BeneficiariesInput, { Beneficiary } from '@/components/compose/BeneficiariesInput';
 
+// SDK import for markdown editing utilities
+import { useEditorToolbar, ALL_COMMON_EMOJIS } from '@snapie/composer/react';
+
 // Preview Content Component with Spoiler Support
 const PreviewContent: FC<{ markdown: string }> = ({ markdown }) => {
     const [spoilerStates, setSpoilerStates] = useState<{[key: string]: boolean}>({});
@@ -213,6 +216,9 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
     const [isGiphyModalOpen, setGiphyModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
+    // Use SDK toolbar hook for markdown editing
+    const toolbar = useEditorToolbar(textareaRef, markdown, setMarkdown);
+
     // Hashtag handlers
     const handleHashtagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         const { key } = e;
@@ -257,23 +263,8 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                 const signature = await getFileSignature(compressedFile);
                 const url = await uploadImage(compressedFile, signature);
                 
-                // Insert at cursor position
-                const textarea = textareaRef.current;
-                if (textarea) {
-                    const start = textarea.selectionStart;
-                    const end = textarea.selectionEnd;
-                    const imageMarkdown = `![${file.name}](${url})`;
-                    const newMarkdown = markdown.substring(0, start) + imageMarkdown + markdown.substring(end);
-                    setMarkdown(newMarkdown);
-                    
-                    // Restore cursor position
-                    setTimeout(() => {
-                        textarea.focus();
-                        textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
-                    }, 0);
-                } else {
-                    setMarkdown(markdown + (markdown ? '\n\n' : '') + `![${file.name}](${url})`);
-                }
+                // Insert image using SDK
+                toolbar.image(url, file.name);
 
                 toast({
                     title: "Success!",
@@ -295,7 +286,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                 setIsUploading(false);
             }
         }
-    }, [markdown, setMarkdown, toast]);
+    }, [markdown, setMarkdown, toast, toolbar]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -325,58 +316,30 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
         }
     }, [toast]);
 
-    // Insert markdown at cursor position
-    const insertMarkdown = (before: string, after: string = '') => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = markdown.substring(start, end);
-        const newText = before + selectedText + after;
-        
-        const newMarkdown = markdown.substring(0, start) + newText + markdown.substring(end);
-        setMarkdown(newMarkdown);
-
-        // Set cursor position after insertion
-        setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-        }, 0);
-    };
-
-    // Toolbar actions
-    const handleBold = () => insertMarkdown('**', '**');
-    const handleItalic = () => insertMarkdown('*', '*');
-    const handleUnderline = () => insertMarkdown('<u>', '</u>');
-    const handleStrikethrough = () => insertMarkdown('~~', '~~');
-    const handleLink = () => insertMarkdown('[', '](url)');
-    const handleBulletList = () => insertMarkdown('\n- ');
-    const handleNumberedList = () => insertMarkdown('\n1. ');
-    const handleQuote = () => insertMarkdown('> ');
-    const handleCode = () => insertMarkdown('`', '`');
-    const handleCodeBlock = () => insertMarkdown('```\n', '\n```');
-    const handleTable = () => insertMarkdown('| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n');
-    const handleSpoiler = () => insertMarkdown('>! [Hidden Spoiler Text] ', '\n> Optionally with more lines');
+    // Toolbar actions using SDK
+    const handleBold = () => toolbar.bold();
+    const handleItalic = () => toolbar.italic();
+    const handleUnderline = () => toolbar.underline();
+    const handleStrikethrough = () => toolbar.strikethrough();
+    const handleLink = () => toolbar.link();
+    const handleBulletList = () => toolbar.bulletList();
+    const handleNumberedList = () => toolbar.numberedList();
+    const handleQuote = () => toolbar.blockquote();
+    const handleCodeBlock = () => toolbar.codeBlock();
+    const handleTable = () => toolbar.table(2, 2);
+    const handleSpoiler = () => toolbar.spoiler('Hidden Spoiler Text');
     
-    // Header actions
-    const handleHeader1 = () => insertMarkdown('# ');
-    const handleHeader2 = () => insertMarkdown('## ');
-    const handleHeader3 = () => insertMarkdown('### ');
-    const handleHeader4 = () => insertMarkdown('#### ');
-    const handleHeader5 = () => insertMarkdown('##### ');
-    const handleHeader6 = () => insertMarkdown('###### ');
-    
-    // Common emojis list
-    const commonEmojis = [
-        '😊', '😂', '❤️', '👍', '👎', '🔥', '💯', '🎉', '😍', '🤔',
-        '😢', '😎', '🙄', '😴', '🤗', '🤩', '😬', '😱', '🤯', '😇',
-        '🚀', '⭐', '💪', '👏', '🙌', '🤝', '💰', '📈', '📉', '💎'
-    ];
+    // Header actions using SDK
+    const handleHeader1 = () => toolbar.header(1);
+    const handleHeader2 = () => toolbar.header(2);
+    const handleHeader3 = () => toolbar.header(3);
+    const handleHeader4 = () => toolbar.header(4);
+    const handleHeader5 = () => toolbar.header(5);
+    const handleHeader6 = () => toolbar.header(6);
 
-    // Handle emoji selection
+    // Handle emoji selection using SDK
     const handleEmojiClick = (emoji: string) => {
-        insertMarkdown(emoji + ' ');
+        toolbar.emoji(emoji);
     };
 
     // Handle image upload
@@ -403,7 +366,8 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                     const signature = await getFileSignature(compressedFile);
                     const url = await uploadImage(compressedFile, signature);
                     
-                    insertMarkdown(`![${file.name}](${url})`);
+                    // Insert using SDK
+                    toolbar.image(url, file.name);
 
                     toast({
                         title: "Success!",
@@ -654,7 +618,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                                     color="white"
                                 />
                                 <MenuList maxH="200px" overflowY="auto" display="grid" gridTemplateColumns="repeat(6, 1fr)" gap={1} p={2} bg="secondary" borderColor="border">
-                                    {commonEmojis.map((emoji, index) => (
+                                    {ALL_COMMON_EMOJIS.map((emoji, index) => (
                                         <MenuItem
                                             key={index}
                                             onClick={() => handleEmojiClick(emoji)}

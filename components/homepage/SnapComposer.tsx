@@ -21,7 +21,7 @@ import {
     uploadToIPFS, 
     set3SpeakThumbnail,
     extractVideoIdFromEmbedUrl
-} from '@snapie/composer/video';
+} from '@snapie/operations/video';
 
 interface SnapComposerProps {
     pa: string;

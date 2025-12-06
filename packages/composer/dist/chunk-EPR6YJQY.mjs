@@ -1,5 +1,3 @@
-'use strict';
-
 // src/index.ts
 var COMMON_EMOJIS = {
   reactions: ["\u{1F60A}", "\u{1F602}", "\u2764\uFE0F", "\u{1F44D}", "\u{1F44E}", "\u{1F525}", "\u{1F4AF}", "\u{1F389}", "\u{1F60D}", "\u{1F914}"],
@@ -215,34 +213,6 @@ function createKeyboardHandler(getText, getSelection, applyResult) {
   };
 }
 
-exports.ALL_COMMON_EMOJIS = ALL_COMMON_EMOJIS;
-exports.COMMON_EMOJIS = COMMON_EMOJIS;
-exports.applyToTextarea = applyToTextarea;
-exports.createKeyboardHandler = createKeyboardHandler;
-exports.getSelectionFromTextarea = getSelectionFromTextarea;
-exports.insertBlockquote = insertBlockquote;
-exports.insertBold = insertBold;
-exports.insertBulletList = insertBulletList;
-exports.insertCodeBlock = insertCodeBlock;
-exports.insertEmoji = insertEmoji;
-exports.insertGif = insertGif;
-exports.insertH1 = insertH1;
-exports.insertH2 = insertH2;
-exports.insertH3 = insertH3;
-exports.insertH4 = insertH4;
-exports.insertH5 = insertH5;
-exports.insertH6 = insertH6;
-exports.insertHeader = insertHeader;
-exports.insertHorizontalRule = insertHorizontalRule;
-exports.insertImage = insertImage;
-exports.insertInlineCode = insertInlineCode;
-exports.insertItalic = insertItalic;
-exports.insertLink = insertLink;
-exports.insertMention = insertMention;
-exports.insertNumberedList = insertNumberedList;
-exports.insertSpoiler = insertSpoiler;
-exports.insertStrikethrough = insertStrikethrough;
-exports.insertTable = insertTable;
-exports.insertUnderline = insertUnderline;
-//# sourceMappingURL=index.js.map
-//# sourceMappingURL=index.js.map
+export { ALL_COMMON_EMOJIS, COMMON_EMOJIS, applyToTextarea, createKeyboardHandler, getSelectionFromTextarea, insertBlockquote, insertBold, insertBulletList, insertCodeBlock, insertEmoji, insertGif, insertH1, insertH2, insertH3, insertH4, insertH5, insertH6, insertHeader, insertHorizontalRule, insertImage, insertInlineCode, insertItalic, insertLink, insertMention, insertNumberedList, insertSpoiler, insertStrikethrough, insertTable, insertUnderline };
+//# sourceMappingURL=chunk-EPR6YJQY.mjs.map
+//# sourceMappingURL=chunk-EPR6YJQY.mjs.map

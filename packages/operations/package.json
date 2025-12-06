@@ -1,7 +1,7 @@
 {
-  "name": "@snapie/composer",
+  "name": "@snapie/operations",
   "version": "0.1.0",
-  "description": "Rich markdown editor utilities and React components for Hive blockchain content creation",
+  "description": "Build Hive blockchain operations for posts, comments, and media uploads",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -11,10 +11,15 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.mjs",
-      "require": "./dist/react.js"
+    "./video": {
+      "types": "./dist/video.d.ts",
+      "import": "./dist/video.mjs",
+      "require": "./dist/video.js"
+    },
+    "./audio": {
+      "types": "./dist/audio.d.ts",
+      "import": "./dist/audio.mjs",
+      "require": "./dist/audio.js"
     }
   },
   "files": [
@@ -28,32 +33,28 @@
   "keywords": [
     "hive",
     "blockchain",
-    "markdown",
-    "editor",
     "composer",
-    "react"
+    "post",
+    "comment",
+    "3speak",
+    "media"
   ],
   "author": "Mantequilla-Soft",
   "license": "MIT",
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "@chakra-ui/react": "^2.8.0"
+    "@hiveio/dhive": "^1.3.0",
+    "tus-js-client": "^4.3.0"
   },
   "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    },
-    "@chakra-ui/react": {
+    "tus-js-client": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@types/react": "^18",
+    "@hiveio/dhive": "1.3.1-beta",
+    "@types/node": "^20",
     "tsup": "^8.5.1",
-    "typescript": "^5"
+    "tus-js-client": "^4.3.0",
+    "typescript": "^5.5.4"
   }
 }

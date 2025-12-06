@@ -1,12 +1,12 @@
 /**
- * @snapie/composer/video - Video Upload Module
+ * @snapie/operations/video - Video Upload Module
  * 
  * Optional module for 3Speak video upload integration.
  * Only import this if you need video upload functionality.
  * 
  * @example
  * ```typescript
- * import { uploadVideoTo3Speak } from '@snapie/composer/video';
+ * import { uploadVideoTo3Speak } from '@snapie/operations/video';
  * 
  * const result = await uploadVideoTo3Speak(file, {
  *   apiKey: '...',

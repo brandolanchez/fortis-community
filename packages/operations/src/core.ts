@@ -1,5 +1,5 @@
 /**
- * @snapie/composer - Core Module
+ * @snapie/operations - Core Module
  * 
  * Core utilities for building Hive blockchain operations.
  * This module has no external dependencies beyond @hiveio/dhive types.
@@ -256,7 +256,7 @@ export function buildCommentOptionsOperation(input: {
  * 
  * @example
  * ```typescript
- * import { createComposer } from '@snapie/composer';
+ * import { createComposer } from '@snapie/operations';
  * 
  * const composer = createComposer({
  *   appName: 'my-app',

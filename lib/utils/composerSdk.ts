@@ -1,7 +1,7 @@
 /**
- * Snapie Composer SDK Integration
+ * Snapie Operations SDK Integration
  * 
- * Pre-configured composer instance for Snapie.io using @snapie/composer SDK.
+ * Pre-configured operation builder for Snapie.io using @snapie/operations SDK.
  * 
  * @example
  * ```typescript
@@ -30,7 +30,7 @@ import {
     type CommentInput,
     type ComposerResult,
     type Beneficiary
-} from '@snapie/composer';
+} from '@snapie/operations';
 
 // Video module (optional - only imported where needed)
 export {
@@ -43,7 +43,7 @@ export {
     type VideoUploadOptions,
     type VideoUploadResult,
     type VideoProgressCallback
-} from '@snapie/composer/video';
+} from '@snapie/operations/video';
 
 // Audio module (optional - only imported where needed)
 export {
@@ -53,7 +53,7 @@ export {
     type AudioUploadOptions,
     type AudioUploadResult,
     type AudioProgressCallback
-} from '@snapie/composer/audio';
+} from '@snapie/operations/audio';
 
 // ============================================================================
 // Snapie.io Configured Composer

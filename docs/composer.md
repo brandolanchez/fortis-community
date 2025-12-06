@@ -1,294 +1,296 @@
 # @snapie/composer
 
-Build Hive blockchain operations for posts, comments, and media uploads.
+Rich text editor utilities for markdown content creation on Hive.
 
-## Features
+## Overview
 
-- ✅ Auth-agnostic (works with Keychain, HiveSigner, HiveAuth, Aioha, etc.)
-- ✅ Modular design (core, video, audio)
-- ✅ Automatic permlink generation
-- ✅ Hashtag extraction
-- ✅ Beneficiary management
-- ✅ 3Speak video/audio uploads (optional)
-- ✅ TypeScript support
+`@snapie/composer` provides two layers:
+
+1. **Core utilities** - Framework-agnostic pure functions for markdown manipulation
+2. **React components** - Optional React hooks built on the core utilities
 
 ## Installation
 
 ```bash
-# Core only (no external dependencies)
 pnpm add @snapie/composer
-
-# With video/audio support
-pnpm add @snapie/composer tus-js-client
 ```
 
-## Module Structure
+## Core Utilities
 
-| Import | Description | Dependencies |
-|--------|-------------|--------------|
-| `@snapie/composer` | Core utilities | None |
-| `@snapie/composer/core` | Same as above | None |
-| `@snapie/composer/video` | 3Speak video uploads | `tus-js-client` |
-| `@snapie/composer/audio` | 3Speak audio uploads | `tus-js-client` |
-
-## Quick Start
-
-```typescript
-import { createComposer } from '@snapie/composer';
-
-// Create configured composer
-const composer = createComposer({
-  appName: 'my-app',
-  defaultTags: ['my-app'],
-  beneficiaries: [{ account: 'my-app', weight: 500 }] // 5%
-});
-
-// Build a post
-const result = composer.build({
-  author: 'username',
-  body: 'Hello #hive! 🚀',
-  title: 'My First Post',
-  parentAuthor: '',
-  parentPermlink: 'hive-123456'
-});
-
-// Broadcast with ANY auth method
-await keychain.broadcast(result.operations);
-// or: await hivesigner.broadcast(result.operations);
-// or: await aioha.signAndBroadcastTx(result.operations, KeyTypes.Posting);
-```
-
-## API Reference
-
-### `createComposer(config?: ComposerConfig)`
-
-Create a configured composer instance.
-
-```typescript
-interface ComposerConfig {
-  appName?: string;           // Default: 'snapie'
-  defaultTags?: string[];     // Added to all posts
-  beneficiaries?: Beneficiary[];  // Default beneficiaries
-}
-
-interface Beneficiary {
-  account: string;
-  weight: number;  // Basis points: 100 = 1%, 1000 = 10%
-}
-```
-
-### `composer.build(input: CommentInput): ComposerResult`
-
-Build operations for a post or comment.
-
-```typescript
-interface CommentInput {
-  author: string;              // Required: Hive username
-  body: string;                // Required: Post content
-  parentAuthor: string;        // Required: '' for posts, author for replies
-  parentPermlink: string;      // Required: Community tag or parent permlink
-  
-  // Optional
-  title?: string;              // Post title (empty for comments)
-  permlink?: string;           // Custom permlink (auto-generated if omitted)
-  tags?: string[];             // Additional tags
-  images?: string[];           // Image URLs to append
-  gifUrl?: string;             // GIF URL to append
-  videoEmbedUrl?: string;      // Video embed URL
-  audioEmbedUrl?: string;      // Audio embed URL
-  beneficiaries?: Beneficiary[];  // Override default beneficiaries
-  metadata?: Record<string, unknown>;  // Custom metadata fields
-  
-  // Payout options
-  maxAcceptedPayout?: string;  // Default: '1000000.000 HBD'
-  percentHbd?: number;         // Default: 10000 (100%)
-  allowVotes?: boolean;        // Default: true
-  allowCurationRewards?: boolean;  // Default: true
-}
-
-interface ComposerResult {
-  operations: Operation[];     // Ready to broadcast
-  permlink: string;            // Generated/provided permlink
-  body: string;                // Final body with media appended
-  metadata: Record<string, unknown>;  // json_metadata object
-}
-```
-
-## Examples
-
-### Top-Level Post
-
-```typescript
-const result = composer.build({
-  author: 'alice',
-  body: 'Check out this amazing sunset! #photography #nature',
-  title: 'Beautiful Sunset',
-  parentAuthor: '',
-  parentPermlink: 'hive-194913',  // Photography community
-  images: ['https://images.hive.blog/sunset.jpg'],
-  tags: ['sunset', 'landscape']
-});
-```
-
-### Reply to a Post
-
-```typescript
-const reply = composer.build({
-  author: 'bob',
-  body: 'Wow, stunning shot! 📸',
-  parentAuthor: 'alice',
-  parentPermlink: 'beautiful-sunset-123456'
-});
-```
-
-### Short-form Post (Snap)
-
-```typescript
-const snap = composer.build({
-  author: 'charlie',
-  body: 'Just shipped a new feature! 🚀 #buildinpublic',
-  parentAuthor: '',
-  parentPermlink: 'snapie'
-});
-```
-
-### Post with Custom Beneficiaries
-
-```typescript
-const result = composer.build({
-  author: 'alice',
-  body: 'Collaboration post!',
-  title: 'Our Joint Project',
-  parentAuthor: '',
-  parentPermlink: 'hive-123456',
-  beneficiaries: [
-    { account: 'bob', weight: 2500 },    // 25%
-    { account: 'charlie', weight: 2500 } // 25%
-  ]
-});
-```
-
-## Utility Functions
+Pure functions with no dependencies - work anywhere (React, Vue, Svelte, vanilla JS):
 
 ```typescript
 import {
-  generatePermlink,
-  extractHashtags,
-  imageToMarkdown,
-  imagesToMarkdown,
-  appendMediaToBody,
-  buildCommentOperation,
-  buildCommentOptionsOperation
+  insertBold,
+  insertItalic,
+  insertLink,
+  insertImage,
+  type TextSelection,
+  type InsertResult
 } from '@snapie/composer';
-
-// Generate unique permlink
-generatePermlink();
-// → '20231205t143052789z'
-
-// Extract hashtags
-extractHashtags('Hello #hive and #crypto!');
-// → ['hive', 'crypto']
-
-// Image to markdown
-imageToMarkdown('https://example.com/img.jpg');
-// → '![image](https://example.com/img.jpg)'
-
-// Multiple images
-imagesToMarkdown(['https://a.jpg', 'https://b.jpg']);
-// → '![image](https://a.jpg)\n![image](https://b.jpg)'
-
-// Append media to body
-appendMediaToBody('My content', {
-  images: ['https://img.jpg'],
-  videoEmbedUrl: 'https://3speak.tv/watch?v=...'
-});
-// → 'My content\n\nhttps://3speak.tv/watch?v=...\n\n![image](https://img.jpg)'
 ```
 
-## Video Module
+### API
+
+All editing functions follow the same pattern:
 
 ```typescript
-import { uploadVideoTo3Speak, extractVideoThumbnail } from '@snapie/composer/video';
-
-// Extract thumbnail
-const thumbnail = await extractVideoThumbnail(videoFile);
-
-// Upload to 3Speak
-const embedUrl = await uploadVideoTo3Speak({
-  file: videoFile,
-  username: 'hiveuser',
-  accessToken: 'your-3speak-token',
-  onProgress: (percent) => console.log(`${percent}%`),
-  onError: (err) => console.error(err)
-});
-
-// Use in post
-const result = composer.build({
-  author: 'hiveuser',
-  body: 'Check out my video!',
-  videoEmbedUrl: embedUrl,
-  parentAuthor: '',
-  parentPermlink: 'threespeak'
-});
+function insertXxx(
+  text: string,           // Current text content
+  selection: TextSelection // { start: number, end: number }
+): InsertResult          // { text: string, cursorPosition: number, selection?: TextSelection }
 ```
 
-## Audio Module
+### Example
 
 ```typescript
-import { uploadAudioTo3Speak, createAudioRecorder } from '@snapie/composer/audio';
+const text = 'Hello world';
+const selection = { start: 0, end: 5 }; // "Hello" is selected
 
-// Record audio
-const recorder = createAudioRecorder({
-  onStop: async (blob) => {
-    const embedUrl = await uploadAudioTo3Speak({
-      file: new File([blob], 'recording.webm'),
-      username: 'hiveuser',
-      accessToken: 'token'
-    });
-    console.log('Uploaded:', embedUrl);
-  }
-});
-
-await recorder.start();
-// ... recording ...
-recorder.stop();
+// Wrap selection with bold markers
+const result = insertBold(text, selection);
+console.log(result.text);           // '**Hello** world'
+console.log(result.cursorPosition); // 9 (after the closing **)
 ```
+
+### Available Functions
+
+#### Text Formatting
+
+```typescript
+insertBold(text, sel)          // **text**
+insertItalic(text, sel)        // *text*
+insertUnderline(text, sel)     // <u>text</u>
+insertStrikethrough(text, sel) // ~~text~~
+insertInlineCode(text, sel)    // `text`
+```
+
+#### Block Elements
+
+```typescript
+insertBlockquote(text, sel)    // > text
+insertBulletList(text, sel)    // - text
+insertNumberedList(text, sel)  // 1. text
+insertCodeBlock(text, sel, language?) // ```lang\ntext\n```
+```
+
+#### Headers
+
+```typescript
+insertHeader(text, sel, level) // level 1-6
+insertH1(text, sel)            // # text
+insertH2(text, sel)            // ## text
+insertH3(text, sel)            // ### text
+insertH4(text, sel)            // #### text
+insertH5(text, sel)            // ##### text
+insertH6(text, sel)            // ###### text
+```
+
+#### Links & Media
+
+```typescript
+insertLink(text, sel, url?)           // [text](url)
+insertImage(text, sel, url, alt?)     // ![alt](url)
+insertGif(text, sel, gifUrl)          // ![gif](url)
+```
+
+#### Special Elements
+
+```typescript
+insertTable(text, sel, cols?, rows?)  // | Header | Header |
+insertSpoiler(text, sel, title?)      // >! [title] content (Hive-specific)
+insertHorizontalRule(text, sel)       // ---
+insertEmoji(text, sel, emoji)         // 😊
+insertMention(text, sel, username)    // @username
+```
+
+### Utility Functions
+
+```typescript
+// Get selection from a textarea element
+const selection = getSelectionFromTextarea(textareaElement);
+
+// Apply an InsertResult to a textarea
+applyToTextarea(textareaElement, result, onChange);
+
+// Create keyboard shortcut handler
+const handler = createKeyboardHandler(getText, getSelection, applyResult);
+```
+
+### Emoji Constants
+
+```typescript
+import { COMMON_EMOJIS, ALL_COMMON_EMOJIS } from '@snapie/composer';
+
+console.log(COMMON_EMOJIS.reactions);  // ['😊', '😂', '❤️', ...]
+console.log(COMMON_EMOJIS.expressions); // ['😢', '😎', '🙄', ...]
+console.log(COMMON_EMOJIS.symbols);     // ['🚀', '⭐', '💪', ...]
+console.log(ALL_COMMON_EMOJIS);         // All emojis flattened
+```
+
+---
+
+## React Integration
+
+```typescript
+import { useMarkdownEditor, useEditorToolbar } from '@snapie/composer/react';
+```
+
+### useMarkdownEditor
+
+Full editor state management with keyboard shortcuts:
+
+```typescript
+function MyEditor() {
+  const {
+    value,        // Current markdown string
+    onChange,     // (newValue: string) => void
+    textareaRef,  // React.RefObject<HTMLTextAreaElement>
+    toolbar,      // Object with all editing functions
+    getSelection, // () => TextSelection
+  } = useMarkdownEditor({
+    initialValue: '',
+    onChange: (v) => console.log('Changed:', v)
+  });
+
+  return (
+    <div>
+      {/* Toolbar buttons */}
+      <button onClick={toolbar.bold}>Bold</button>
+      <button onClick={toolbar.italic}>Italic</button>
+      <button onClick={() => toolbar.header(2)}>H2</button>
+      <button onClick={() => toolbar.link('https://hive.io')}>Link</button>
+      
+      {/* Textarea */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+```
+
+#### Toolbar Methods
+
+The `toolbar` object provides these methods:
+
+```typescript
+toolbar.bold()
+toolbar.italic()
+toolbar.underline()
+toolbar.strikethrough()
+toolbar.link(url?: string)
+toolbar.image(url: string, alt?: string)
+toolbar.codeBlock(language?: string)
+toolbar.blockquote()
+toolbar.bulletList()
+toolbar.numberedList()
+toolbar.header(level: 1 | 2 | 3 | 4 | 5 | 6)
+toolbar.table(cols?: number, rows?: number)
+toolbar.spoiler(title?: string)
+toolbar.emoji(emoji: string)
+toolbar.gif(url: string)
+```
+
+#### Built-in Keyboard Shortcuts
+
+Automatically enabled when using `useMarkdownEditor`:
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/Cmd + B` | Bold |
+| `Ctrl/Cmd + I` | Italic |
+| `Ctrl/Cmd + U` | Underline |
+| `Ctrl/Cmd + K` | Insert Link |
+| `Ctrl/Cmd + \`` | Inline Code |
+
+### useEditorToolbar
+
+Headless hook if you want to manage state yourself:
+
+```typescript
+function MyCustomEditor() {
+  const [value, setValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const toolbar = useEditorToolbar(textareaRef, value, setValue);
+  
+  return (
+    <div>
+      <button onClick={toolbar.bold}>B</button>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+    </div>
+  );
+}
+```
+
+---
+
+## Full Example with Preview
+
+```typescript
+import { useMarkdownEditor } from '@snapie/composer/react';
+import { renderHiveMarkdown } from '@snapie/renderer';
+
+function MarkdownEditorWithPreview() {
+  const { value, onChange, textareaRef, toolbar } = useMarkdownEditor();
+  const [showPreview, setShowPreview] = useState(false);
+  
+  return (
+    <div>
+      {/* Toolbar */}
+      <div className="toolbar">
+        <button onClick={toolbar.bold} title="Bold (Ctrl+B)">B</button>
+        <button onClick={toolbar.italic} title="Italic (Ctrl+I)">I</button>
+        <button onClick={toolbar.underline} title="Underline (Ctrl+U)">U</button>
+        <button onClick={() => toolbar.header(2)}>H2</button>
+        <button onClick={toolbar.blockquote}>Quote</button>
+        <button onClick={toolbar.bulletList}>• List</button>
+        <button onClick={() => toolbar.link()}>Link</button>
+        <span className="divider" />
+        <button onClick={() => setShowPreview(!showPreview)}>
+          {showPreview ? 'Edit' : 'Preview'}
+        </button>
+      </div>
+      
+      {/* Editor / Preview */}
+      {showPreview ? (
+        <div 
+          className="preview"
+          dangerouslySetInnerHTML={{ __html: renderHiveMarkdown(value) }}
+        />
+      ) : (
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Write your content..."
+        />
+      )}
+    </div>
+  );
+}
+```
+
+---
 
 ## TypeScript Types
 
 ```typescript
-import type {
-  ComposerConfig,
-  ComposerResult,
-  CommentInput,
-  Beneficiary,
-  Operation
-} from '@snapie/composer';
+interface TextSelection {
+  start: number;  // 0-indexed start position
+  end: number;    // 0-indexed end position
+}
 
-import type {
-  VideoUploadOptions
-} from '@snapie/composer/video';
-
-import type {
-  AudioUploadOptions,
-  AudioRecorderOptions
-} from '@snapie/composer/audio';
+interface InsertResult {
+  text: string;           // The modified text
+  cursorPosition: number; // Where to place cursor
+  selection?: TextSelection; // Optional: select this range
+}
 ```
-
-## Beneficiary Weight Reference
-
-| Weight | Percentage |
-|--------|------------|
-| 100 | 1% |
-| 250 | 2.5% |
-| 500 | 5% |
-| 1000 | 10% |
-| 2500 | 25% |
-| 5000 | 50% |
-| 10000 | 100% |
-
-**Note:** Beneficiaries are automatically sorted alphabetically by account (required by Hive).
-
-## License
-
-MIT

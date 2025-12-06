@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
-import { createComposer, type Beneficiary } from '@snapie/composer'
+import { createComposer, type Beneficiary } from '@snapie/operations'
 import type { Beneficiary as BeneficiaryInputType } from '@/components/compose/BeneficiariesInput'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })

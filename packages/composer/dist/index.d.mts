@@ -1,165 +1,170 @@
-import { Operation, CommentOperation, CommentOptionsOperation } from '@hiveio/dhive';
-export { CommentOperation, CommentOptionsOperation, Operation } from '@hiveio/dhive';
-
 /**
- * @snapie/composer - Core Module
+ * @snapie/composer
  *
- * Core utilities for building Hive blockchain operations.
- * This module has no external dependencies beyond @hiveio/dhive types.
- */
-
-/**
- * Beneficiary recipient for post rewards
- */
-interface Beneficiary {
-    account: string;
-    /** Weight in basis points (100 = 1%, 1000 = 10%, 10000 = 100%) */
-    weight: number;
-}
-/**
- * Input for building a comment/post operation
- */
-interface CommentInput {
-    /** Author's Hive username */
-    author: string;
-    /** Post body in markdown */
-    body: string;
-    /** Custom permlink (auto-generated if not provided) */
-    permlink?: string;
-    /** Post title (empty for comments/snaps) */
-    title?: string;
-    /** Parent author (empty for top-level posts) */
-    parentAuthor: string;
-    /** Parent permlink (community tag or container permlink) */
-    parentPermlink: string;
-    /** Image URLs to append to body */
-    images?: string[];
-    /** GIF URL to append to body */
-    gifUrl?: string;
-    /** Video embed URL (3Speak, YouTube, etc.) */
-    videoEmbedUrl?: string;
-    /** Audio embed URL */
-    audioEmbedUrl?: string;
-    /** Custom tags (hashtags extracted automatically from body too) */
-    tags?: string[];
-    /** Custom json_metadata fields */
-    metadata?: Record<string, unknown>;
-    /** Beneficiaries for this post */
-    beneficiaries?: Beneficiary[];
-    /** Max accepted payout (default: "1000000.000 HBD") */
-    maxAcceptedPayout?: string;
-    /** Percent HBD (default: 10000 = 100%) */
-    percentHbd?: number;
-    /** Allow votes (default: true) */
-    allowVotes?: boolean;
-    /** Allow curation rewards (default: true) */
-    allowCurationRewards?: boolean;
-}
-/**
- * Result from building operations
- */
-interface ComposerResult {
-    /** The operations to broadcast */
-    operations: Operation[];
-    /** The generated permlink */
-    permlink: string;
-    /** The final body content */
-    body: string;
-    /** The json_metadata object */
-    metadata: Record<string, unknown>;
-}
-/**
- * Configuration for the composer
- */
-interface ComposerConfig {
-    /** Application name for json_metadata (default: "snapie") */
-    appName?: string;
-    /** Default tags to include in posts */
-    defaultTags?: string[];
-    /** Default beneficiaries for all posts */
-    beneficiaries?: Beneficiary[];
-}
-/**
- * Generate a unique permlink from current timestamp
- */
-declare function generatePermlink(): string;
-/**
- * Extract hashtags from text content
+ * Rich markdown editor utilities for Hive blockchain content creation.
  *
- * @param text - Text to extract hashtags from
- * @returns Array of hashtag strings (without the # symbol)
+ * This package provides two layers:
+ *
+ * ## Core Utilities (Framework-Agnostic)
+ *
+ * Pure functions for markdown manipulation that work anywhere:
+ *
+ * ```typescript
+ * import { insertBold, insertImage, insertLink } from '@snapie/composer';
+ *
+ * // These return { text, cursorPosition } - you handle the UI
+ * const result = insertBold('Hello world', { start: 0, end: 5 });
+ * // result.text = '**Hello** world'
+ * // result.cursorPosition = 9
+ * ```
+ *
+ * ## React Components (Optional)
+ *
+ * Pre-built React components with Chakra UI:
+ *
+ * ```typescript
+ * import { MarkdownEditor, EditorToolbar } from '@snapie/composer/react';
+ *
+ * <MarkdownEditor
+ *   value={markdown}
+ *   onChange={setMarkdown}
+ *   onImageUpload={uploadToHive}
+ * />
+ * ```
+ *
+ * @packageDocumentation
  */
-declare function extractHashtags(text: string): string[];
 /**
- * Build markdown image syntax from URL
+ * Selection range in text
  */
-declare function imageToMarkdown(url: string): string;
+interface TextSelection {
+    /** Start position (0-indexed) */
+    start: number;
+    /** End position (0-indexed) */
+    end: number;
+}
 /**
- * Build markdown for multiple images
+ * Result of a markdown insertion operation
  */
-declare function imagesToMarkdown(urls: string[]): string;
+interface InsertResult {
+    /** The modified text */
+    text: string;
+    /** Where to place the cursor after insertion */
+    cursorPosition: number;
+    /** Optional selection range (for selecting inserted text) */
+    selection?: TextSelection;
+}
 /**
- * Append media embeds to body content
+ * Common emoji categories for quick access
  */
-declare function appendMediaToBody(body: string, options: {
-    images?: string[];
-    gifUrl?: string;
-    videoEmbedUrl?: string;
-    audioEmbedUrl?: string;
-}): string;
+declare const COMMON_EMOJIS: {
+    readonly reactions: readonly ["😊", "😂", "❤️", "👍", "👎", "🔥", "💯", "🎉", "😍", "🤔"];
+    readonly expressions: readonly ["😢", "😎", "🙄", "😴", "🤗", "🤩", "😬", "😱", "🤯", "😇"];
+    readonly symbols: readonly ["🚀", "⭐", "💪", "👏", "🙌", "🤝", "💰", "📈", "📉", "💎"];
+};
 /**
- * Build a comment operation
+ * Flattened list of all common emojis
  */
-declare function buildCommentOperation(input: {
-    parentAuthor: string;
-    parentPermlink: string;
-    author: string;
-    permlink: string;
-    title: string;
-    body: string;
-    metadata: Record<string, unknown>;
-}): CommentOperation;
+declare const ALL_COMMON_EMOJIS: ("😊" | "😂" | "❤️" | "👍" | "👎" | "🔥" | "💯" | "🎉" | "😍" | "🤔" | "😢" | "😎" | "🙄" | "😴" | "🤗" | "🤩" | "😬" | "😱" | "🤯" | "😇" | "🚀" | "⭐" | "💪" | "👏" | "🙌" | "🤝" | "💰" | "📈" | "📉" | "💎")[];
 /**
- * Build a comment_options operation (for beneficiaries, payout settings, etc.)
- */
-declare function buildCommentOptionsOperation(input: {
-    author: string;
-    permlink: string;
-    maxAcceptedPayout?: string;
-    percentHbd?: number;
-    allowVotes?: boolean;
-    allowCurationRewards?: boolean;
-    beneficiaries?: Beneficiary[];
-}): CommentOptionsOperation;
-/**
- * Create a configured composer instance
+ * Wrap selected text with bold markers
  *
  * @example
  * ```typescript
- * import { createComposer } from '@snapie/composer';
- *
- * const composer = createComposer({
- *   appName: 'my-app',
- *   defaultTags: ['my-app'],
- *   beneficiaries: [{ account: 'my-app', weight: 500 }] // 5%
- * });
- *
- * const result = composer.build({
- *   author: 'user',
- *   body: 'Hello!',
- *   parentAuthor: '',
- *   parentPermlink: 'hive-123456'
- * });
- *
- * // Broadcast with any auth method
- * await myAuth.broadcast(result.operations);
+ * const result = insertBold('Hello world', { start: 0, end: 5 });
+ * // result.text = '**Hello** world'
  * ```
  */
-declare function createComposer(config?: ComposerConfig): {
-    /**
-     * Build operations for a comment/post
-     */
-    build(input: CommentInput): ComposerResult;
-};
+declare function insertBold(text: string, selection: TextSelection): InsertResult;
+/**
+ * Wrap selected text with italic markers
+ */
+declare function insertItalic(text: string, selection: TextSelection): InsertResult;
+/**
+ * Wrap selected text with underline HTML tags
+ */
+declare function insertUnderline(text: string, selection: TextSelection): InsertResult;
+/**
+ * Wrap selected text with strikethrough markers
+ */
+declare function insertStrikethrough(text: string, selection: TextSelection): InsertResult;
+/**
+ * Wrap selected text with inline code markers
+ */
+declare function insertInlineCode(text: string, selection: TextSelection): InsertResult;
+/**
+ * Insert a link at cursor/selection
+ * If text is selected, it becomes the link text
+ */
+declare function insertLink(text: string, selection: TextSelection, url?: string): InsertResult;
+/**
+ * Insert an image at cursor
+ */
+declare function insertImage(text: string, selection: TextSelection, url: string, altText?: string): InsertResult;
+/**
+ * Insert a code block
+ */
+declare function insertCodeBlock(text: string, selection: TextSelection, language?: string): InsertResult;
+/**
+ * Insert a blockquote
+ */
+declare function insertBlockquote(text: string, selection: TextSelection): InsertResult;
+/**
+ * Insert a bullet list item
+ */
+declare function insertBulletList(text: string, selection: TextSelection): InsertResult;
+/**
+ * Insert a numbered list item
+ */
+declare function insertNumberedList(text: string, selection: TextSelection): InsertResult;
+/**
+ * Insert a header at the specified level (1-6)
+ */
+declare function insertHeader(text: string, selection: TextSelection, level: 1 | 2 | 3 | 4 | 5 | 6): InsertResult;
+/**
+ * Convenience functions for specific header levels
+ */
+declare const insertH1: (text: string, sel: TextSelection) => InsertResult;
+declare const insertH2: (text: string, sel: TextSelection) => InsertResult;
+declare const insertH3: (text: string, sel: TextSelection) => InsertResult;
+declare const insertH4: (text: string, sel: TextSelection) => InsertResult;
+declare const insertH5: (text: string, sel: TextSelection) => InsertResult;
+declare const insertH6: (text: string, sel: TextSelection) => InsertResult;
+/**
+ * Insert a markdown table
+ */
+declare function insertTable(text: string, selection: TextSelection, columns?: number, rows?: number): InsertResult;
+/**
+ * Insert a spoiler block (Hive-specific syntax)
+ */
+declare function insertSpoiler(text: string, selection: TextSelection, title?: string): InsertResult;
+/**
+ * Insert a horizontal rule
+ */
+declare function insertHorizontalRule(text: string, selection: TextSelection): InsertResult;
+/**
+ * Insert an emoji
+ */
+declare function insertEmoji(text: string, selection: TextSelection, emoji: string): InsertResult;
+/**
+ * Insert a Hive user mention
+ */
+declare function insertMention(text: string, selection: TextSelection, username: string): InsertResult;
+/**
+ * Insert a GIF from Giphy
+ */
+declare function insertGif(text: string, selection: TextSelection, gifUrl: string): InsertResult;
+/**
+ * Get the current selection from a textarea element
+ */
+declare function getSelectionFromTextarea(textarea: HTMLTextAreaElement): TextSelection;
+/**
+ * Apply an insert result to a textarea and restore cursor position
+ */
+declare function applyToTextarea(textarea: HTMLTextAreaElement, result: InsertResult, onChange?: (value: string) => void): void;
+/**
+ * Create a keyboard shortcut handler for common markdown operations
+ */
+declare function createKeyboardHandler(getText: () => string, getSelection: () => TextSelection, applyResult: (result: InsertResult) => void): (event: KeyboardEvent) => void;
 
-export { type Beneficiary, type CommentInput, type ComposerConfig, type ComposerResult, appendMediaToBody, buildCommentOperation, buildCommentOptionsOperation, createComposer, extractHashtags, generatePermlink, imageToMarkdown, imagesToMarkdown };
+export { ALL_COMMON_EMOJIS, COMMON_EMOJIS, type InsertResult, type TextSelection, applyToTextarea, createKeyboardHandler, getSelectionFromTextarea, insertBlockquote, insertBold, insertBulletList, insertCodeBlock, insertEmoji, insertGif, insertH1, insertH2, insertH3, insertH4, insertH5, insertH6, insertHeader, insertHorizontalRule, insertImage, insertInlineCode, insertItalic, insertLink, insertMention, insertNumberedList, insertSpoiler, insertStrikethrough, insertTable, insertUnderline };

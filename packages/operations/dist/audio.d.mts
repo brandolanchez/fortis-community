@@ -1,12 +1,12 @@
 /**
- * @snapie/composer/audio - Audio Upload Module
+ * @snapie/operations/audio - Audio Upload Module
  *
  * Optional module for 3Speak audio upload integration.
  * Only import this if you need audio upload functionality.
  *
  * @example
  * ```typescript
- * import { uploadAudioTo3Speak } from '@snapie/composer/audio';
+ * import { uploadAudioTo3Speak } from '@snapie/operations/audio';
  *
  * const embedUrl = await uploadAudioTo3Speak(audioBlob, {
  *   apiKey: '...',

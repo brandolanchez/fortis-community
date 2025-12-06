@@ -1,16 +1,14 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-    entry: {
-        index: 'src/index.ts',
-        video: 'src/video.ts',
-        audio: 'src/audio.ts',
-    },
-    format: ['cjs', 'esm'],
-    dts: true,
-    splitting: false,
-    sourcemap: true,
-    clean: true,
-    target: 'es2020',
-    external: ['tus-js-client'],
+  entry: {
+    index: 'src/index.ts',
+    react: 'src/react/index.tsx',
+  },
+  format: ['cjs', 'esm'],
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  external: ['react', 'react-dom', '@chakra-ui/react', '@snapie/renderer'],
+  treeshake: true,
 });

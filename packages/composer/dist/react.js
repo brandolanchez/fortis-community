@@ -1,5 +1,11 @@
 'use strict';
 
+var React = require('react');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+var React__default = /*#__PURE__*/_interopDefault(React);
+
 // src/index.ts
 var COMMON_EMOJIS = {
   reactions: ["\u{1F60A}", "\u{1F602}", "\u2764\uFE0F", "\u{1F44D}", "\u{1F44E}", "\u{1F525}", "\u{1F4AF}", "\u{1F389}", "\u{1F60D}", "\u{1F914}"],
@@ -215,6 +221,87 @@ function createKeyboardHandler(getText, getSelection, applyResult) {
   };
 }
 
+// src/react/index.tsx
+function useMarkdownEditor(options = {}) {
+  const [value, setValue] = React__default.default.useState(options.initialValue ?? "");
+  const textareaRef = React.useRef(null);
+  const handleChange = React.useCallback((newValue) => {
+    setValue(newValue);
+    options.onChange?.(newValue);
+  }, [options.onChange]);
+  const getSelection = React.useCallback(() => {
+    if (!textareaRef.current) return { start: 0, end: 0 };
+    return getSelectionFromTextarea(textareaRef.current);
+  }, []);
+  const apply = React.useCallback((result) => {
+    if (!textareaRef.current) return;
+    applyToTextarea(textareaRef.current, result, handleChange);
+  }, [handleChange]);
+  const toolbar = React__default.default.useMemo(() => ({
+    bold: () => apply(insertBold(value, getSelection())),
+    italic: () => apply(insertItalic(value, getSelection())),
+    underline: () => apply(insertUnderline(value, getSelection())),
+    strikethrough: () => apply(insertStrikethrough(value, getSelection())),
+    link: (url) => apply(insertLink(value, getSelection(), url)),
+    image: (url, alt) => apply(insertImage(value, getSelection(), url, alt)),
+    codeBlock: (lang) => apply(insertCodeBlock(value, getSelection(), lang)),
+    blockquote: () => apply(insertBlockquote(value, getSelection())),
+    bulletList: () => apply(insertBulletList(value, getSelection())),
+    numberedList: () => apply(insertNumberedList(value, getSelection())),
+    header: (level) => apply(insertHeader(value, getSelection(), level)),
+    table: (cols, rows) => apply(insertTable(value, getSelection(), cols, rows)),
+    spoiler: (title) => apply(insertSpoiler(value, getSelection(), title)),
+    emoji: (emoji) => apply(insertEmoji(value, getSelection(), emoji)),
+    gif: (url) => apply(insertGif(value, getSelection(), url))
+  }), [value, getSelection, apply]);
+  React.useEffect(() => {
+    const handler = createKeyboardHandler(
+      () => value,
+      getSelection,
+      apply
+    );
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.addEventListener("keydown", handler);
+      return () => textarea.removeEventListener("keydown", handler);
+    }
+  }, [value, getSelection, apply]);
+  return {
+    value,
+    onChange: handleChange,
+    textareaRef,
+    toolbar,
+    getSelection
+  };
+}
+function useEditorToolbar(textareaRef, value, onChange) {
+  const getSelection = React.useCallback(() => {
+    if (!textareaRef.current) return { start: 0, end: 0 };
+    return getSelectionFromTextarea(textareaRef.current);
+  }, [textareaRef]);
+  const apply = React.useCallback((result) => {
+    if (!textareaRef.current) return;
+    applyToTextarea(textareaRef.current, result, onChange);
+  }, [textareaRef, onChange]);
+  return React__default.default.useMemo(() => ({
+    bold: () => apply(insertBold(value, getSelection())),
+    italic: () => apply(insertItalic(value, getSelection())),
+    underline: () => apply(insertUnderline(value, getSelection())),
+    strikethrough: () => apply(insertStrikethrough(value, getSelection())),
+    link: (url) => apply(insertLink(value, getSelection(), url)),
+    image: (url, alt) => apply(insertImage(value, getSelection(), url, alt)),
+    codeBlock: (lang) => apply(insertCodeBlock(value, getSelection(), lang)),
+    blockquote: () => apply(insertBlockquote(value, getSelection())),
+    bulletList: () => apply(insertBulletList(value, getSelection())),
+    numberedList: () => apply(insertNumberedList(value, getSelection())),
+    header: (level) => apply(insertHeader(value, getSelection(), level)),
+    table: (cols, rows) => apply(insertTable(value, getSelection(), cols, rows)),
+    spoiler: (title) => apply(insertSpoiler(value, getSelection(), title)),
+    emoji: (emoji) => apply(insertEmoji(value, getSelection(), emoji)),
+    gif: (url) => apply(insertGif(value, getSelection(), url))
+  }), [value, getSelection, apply]);
+}
+
 exports.ALL_COMMON_EMOJIS = ALL_COMMON_EMOJIS;
 exports.COMMON_EMOJIS = COMMON_EMOJIS;
 exports.applyToTextarea = applyToTextarea;
@@ -235,7 +322,6 @@ exports.insertH6 = insertH6;
 exports.insertHeader = insertHeader;
 exports.insertHorizontalRule = insertHorizontalRule;
 exports.insertImage = insertImage;
-exports.insertInlineCode = insertInlineCode;
 exports.insertItalic = insertItalic;
 exports.insertLink = insertLink;
 exports.insertMention = insertMention;
@@ -244,5 +330,7 @@ exports.insertSpoiler = insertSpoiler;
 exports.insertStrikethrough = insertStrikethrough;
 exports.insertTable = insertTable;
 exports.insertUnderline = insertUnderline;
-//# sourceMappingURL=index.js.map
-//# sourceMappingURL=index.js.map
+exports.useEditorToolbar = useEditorToolbar;
+exports.useMarkdownEditor = useMarkdownEditor;
+//# sourceMappingURL=react.js.map
+//# sourceMappingURL=react.js.map
