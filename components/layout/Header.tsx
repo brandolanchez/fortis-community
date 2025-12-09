@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Flex, Text, Input, Button, Image, useColorMode, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useToast } from '@chakra-ui/react';
 import { getCommunityInfo, getProfile } from '@/lib/hive/client-functions';
 import { useKeychain } from '@/contexts/KeychainContext';
+import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 export default function Header() {
     const { colorMode } = useColorMode();
@@ -50,9 +51,9 @@ export default function Header() {
             <Flex justify="space-between" align="center">
                 <Flex align="center" gap={2}>
                     {/* Display profile image */}
-                    {profileInfo?.metadata?.profile?.profile_image && (
+                    {communityTag && (
                         <Image
-                            src={profileInfo.metadata.profile.profile_image}
+                            src={getHiveAvatarUrl(communityTag, 'large')}
                             alt="Profile Image"
                             boxSize="80px" // Adjust the size as needed
                             borderRadius="full"

@@ -9,6 +9,7 @@ import InfiniteScroll from 'react-infinite-scroll-component';
 import UserActionButtons from './UserActionButtons';
 import FollowersModal from './FollowersModal';
 import { useKeychain } from '@/contexts/KeychainContext';
+import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 interface ProfilePageProps {
   username: string;
@@ -147,7 +148,7 @@ export default function ProfilePage({ username }: ProfilePageProps) {
   <Flex alignItems="center" zIndex={2} position="relative">
 
     <Avatar
-      src={profileMetadata.profileImage}
+      src={getHiveAvatarUrl(username, 'large')}
       name={hiveAccount?.name}
       borderRadius="full"
       boxSize="100px"

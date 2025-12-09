@@ -122,9 +122,9 @@ export default function Sidebar() {
                     ) : (
                         <>
                             <Flex align="center" mb={4} display={fullBreakpoint}>
-                                {profileInfo?.metadata?.profile?.profile_image && (
+                                {communityTag && (
                                     <Image
-                                        src={profileInfo.metadata.profile.profile_image}
+                                        src={getHiveAvatarUrl(communityTag, 'medium')}
                                         alt="Profile Image"
                                         boxSize="50px"
                                         borderRadius="full"
@@ -135,9 +135,9 @@ export default function Sidebar() {
                             </Flex>
                             {/* Icon only for compact view */}
                             <Box display={compactBreakpoint} mb={4} w="40px" h="40px">
-                                {profileInfo?.metadata?.profile?.profile_image && (
+                                {communityTag && (
                                     <Image
-                                        src={profileInfo.metadata.profile.profile_image}
+                                        src={getHiveAvatarUrl(communityTag, 'small')}
                                         alt="Profile Image"
                                         boxSize="40px"
                                         borderRadius="full"
