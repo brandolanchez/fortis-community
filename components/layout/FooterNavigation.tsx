@@ -1,13 +1,18 @@
 import { useKeychain } from '@/contexts/KeychainContext';
-import { Box, Button, HStack, Icon, Tooltip, useColorMode } from '@chakra-ui/react';
+import { Box, Button, HStack, Icon, Tooltip, useColorMode, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { FiBell, FiBook, FiCreditCard, FiHome, FiUser } from 'react-icons/fi';
+import { FiBell, FiBook, FiCreditCard, FiHome, FiUser, FiLogIn, FiLogOut } from 'react-icons/fi';
+import { useState } from 'react';
 
 export default function FooterNavigation() {
 
-    const { user } = useKeychain();
+    const { user, login, logout, isLoggedIn } = useKeychain();
     const router = useRouter();
     const { colorMode } = useColorMode();
+    const [modalDisplayed, setModalDisplayed] = useState(false);
+    const [username, setUsername] = useState('');
+    const toast = useToast();
+    
     const handleNavigation = (path: string) => {
         if (router) {
             router.push(path);
@@ -33,6 +38,8 @@ export default function FooterNavigation() {
                     <Button
                         onClick={() => handleNavigation("/")}
                         variant="ghost"
+                        color="white"
+                        _hover={{ bg: 'whiteAlpha.200' }}
                         leftIcon={<Icon as={FiHome} boxSize={4} />}
                     />
                 </Tooltip>
@@ -41,6 +48,8 @@ export default function FooterNavigation() {
                     <Button
                         onClick={() => handleNavigation("/blog")}
                         variant="ghost"
+                        color="white"
+                        _hover={{ bg: 'whiteAlpha.200' }}
                         leftIcon={<Icon as={FiBook} boxSize={4} />}
                     />
                 </Tooltip>
@@ -51,6 +60,8 @@ export default function FooterNavigation() {
                             <Button
                                 onClick={() => handleNavigation("/@" + user + "/notifications")}
                                 variant="ghost"
+                                color="white"
+                                _hover={{ bg: 'whiteAlpha.200' }}
                                 leftIcon={<Icon as={FiBell} boxSize={4} />}
                             />
                         </Tooltip>
@@ -59,6 +70,8 @@ export default function FooterNavigation() {
                             <Button
                                 onClick={() => handleNavigation("/@" + user + '/wallet')}
                                 variant="ghost"
+                                color="white"
+                                _hover={{ bg: 'whiteAlpha.200' }}
                                 leftIcon={<Icon as={FiCreditCard} boxSize={4} />}
                             />
                         </Tooltip>
@@ -67,12 +80,79 @@ export default function FooterNavigation() {
                             <Button
                                 onClick={() => handleNavigation("/@" + user)}
                                 variant="ghost"
+                                color="white"
+                                _hover={{ bg: 'whiteAlpha.200' }}
                                 leftIcon={<Icon as={FiUser} boxSize={4} />}
                             />
                         </Tooltip>
+                        
+                        <Tooltip label="Logout" aria-label="Logout tooltip">
+                            <Button
+                                onClick={logout}
+                                variant="ghost"
+                                color="white"
+                                _hover={{ bg: 'whiteAlpha.200' }}
+                                leftIcon={<Icon as={FiLogOut} boxSize={4} />}
+                            />
+                        </Tooltip>
                     </>
-                ) : null}
+                ) : (
+                    <Tooltip label="Login" aria-label="Login tooltip">
+                        <Button
+                            onClick={() => setModalDisplayed(true)}
+                            variant="ghost"
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.200' }}
+                            leftIcon={<Icon as={FiLogIn} boxSize={4} />}
+                        />
+                    </Tooltip>
+                )}
             </HStack>
+            
+            {/* Login Modal */}
+            <Modal isOpen={modalDisplayed} onClose={() => setModalDisplayed(false)}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Login with Hive Keychain</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody pb={6}>
+                        <Input
+                            placeholder="Enter your Hive username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            mb={4}
+                        />
+                        <Button
+                            colorScheme="blue"
+                            width="full"
+                            onClick={async () => {
+                                try {
+                                    const success = await login(username);
+                                    if (success) {
+                                        setModalDisplayed(false);
+                                        setUsername('');
+                                        toast({
+                                            title: 'Success!',
+                                            description: `Logged in as @${username}`,
+                                            status: 'success',
+                                            duration: 3000,
+                                        });
+                                    }
+                                } catch (error) {
+                                    toast({
+                                        title: 'Login failed',
+                                        description: error instanceof Error ? error.message : 'Please try again',
+                                        status: 'error',
+                                        duration: 5000,
+                                    });
+                                }
+                            }}
+                        >
+                            Login
+                        </Button>
+                    </ModalBody>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 }

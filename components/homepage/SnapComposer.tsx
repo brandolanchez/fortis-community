@@ -243,24 +243,24 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 isDisabled={isDisabled}
                 onKeyDown={handleKeyDown} // Attach the keydown handler
             />
-            <HStack justify="space-between" mb={3}>
-                <HStack>
-                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} as="label" variant="ghost" isDisabled={isDisabled || hasVideo || hasAudio}>
+            <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
+                <HStack flexShrink={1} minW={0}>
+                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} as="label" variant="ghost" isDisabled={isDisabled || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <FaImage size={22} />
                         <ImageUploader images={images} onUpload={setImages} onRemove={(index) => setImages(prevImages => prevImages.filter((_, i) => i !== index))} />
                     </Button>
-                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setGiphyModalOpen(!isGiphyModalOpen)} isDisabled={isDisabled || hasVideo || hasAudio}>
+                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setGiphyModalOpen(!isGiphyModalOpen)} isDisabled={isDisabled || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <MdGif size={48} />
                     </Button>
-                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} as="label" variant="ghost" isDisabled={isDisabled || hasMedia || videoUploadProgress > 0 || hasAudio}>
+                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} as="label" variant="ghost" isDisabled={isDisabled || hasMedia || videoUploadProgress > 0 || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <FaVideo size={22} />
                         <VideoUploader onUpload={handleVideoSelection} />
                     </Button>
-                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setAudioRecorderOpen(true)} isDisabled={isDisabled || hasMedia || hasVideo || hasAudio}>
+                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setAudioRecorderOpen(true)} isDisabled={isDisabled || hasMedia || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <FaMicrophone size={22} />
                     </Button>
                 </HStack>
-                <Button variant="solid" colorScheme="primary" onClick={handleComment} isDisabled={isDisabled || Boolean(selectedVideo && !videoEmbedUrl)}>
+                <Button variant="solid" colorScheme="primary" onClick={handleComment} isDisabled={isDisabled || Boolean(selectedVideo && !videoEmbedUrl)} flexShrink={0} size={{ base: 'sm', md: 'md' }}>
                     {isLoading ? <Spinner size="sm" /> : (!user ? "Log in to post" : buttonText)}
                 </Button>
             </HStack>

@@ -7,6 +7,7 @@ import { FiHome, FiBell, FiUser, FiShoppingCart, FiBook, FiCreditCard, FiLogIn, 
 import { Notifications } from '@hiveio/dhive';
 import { fetchNewNotifications, getCommunityInfo, getProfile } from '@/lib/hive/client-functions';
 import { animate, color, motion, px } from 'framer-motion';
+import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 interface ProfileInfo {
     metadata: {
@@ -218,7 +219,7 @@ export default function Sidebar() {
                                         leftIcon={
                                             user ? (
                                                 <Image
-                                                    src={`https://images.hive.blog/u/${user}/avatar`}
+                                                    src={getHiveAvatarUrl(user, 'small')}
                                                     alt="Profile Image"
                                                     boxSize={4}
                                                     borderRadius="full"

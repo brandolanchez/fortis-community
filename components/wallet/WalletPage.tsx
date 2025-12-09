@@ -35,6 +35,7 @@ import TransactionHistory from '@/components/wallet/TransactionHistory';
 import { useRouter } from 'next/navigation';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { KeychainKeyTypes } from 'keychain-sdk';
+import { getProfileImageUrl } from '@/lib/utils/avatarUtils';
 
 interface WalletPageProps {
   username: string;
@@ -300,7 +301,7 @@ export default function WalletPage({ username }: WalletPageProps) {
 
         <Flex alignItems="center" zIndex={2} position="relative">
           <Avatar
-            src={profileMetadata.profileImage}
+            src={getProfileImageUrl(username, profileMetadata.profileImage, 'large')}
             name={hiveAccount?.name}
             borderRadius="full"
             boxSize="100px"

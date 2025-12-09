@@ -1000,10 +1000,10 @@ export interface Transaction {
 export async function getTransactionHistory(
   username: string,
   start: number = -1,
-  limit: number = 100
+  limit: number = 1000
 ): Promise<{ transactions: Transaction[], oldestIndex: number }> {
   try {
-    // Get account history with transfer operations
+    // Get account history - using larger limit since we filter client-side
     const history = await HiveClient.database.getAccountHistory(
       username,
       start,
