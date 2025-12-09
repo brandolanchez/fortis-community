@@ -1,5 +1,5 @@
 'use client';
-import { uploadImageWithUserSignature } from '@/lib/hive/client-functions';
+import { uploadImageWithKeychain } from '@/lib/hive/client-functions';
 import { FC, useRef, useState, useCallback, useEffect } from "react";
 import { Box, Flex, Button, useToast, Textarea, IconButton, HStack, Menu, MenuButton, MenuList, MenuItem, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, Tag, TagLabel, TagCloseButton, Wrap, WrapItem, useBreakpointValue, Text } from '@chakra-ui/react';
 import { FaImage, FaEye, FaCode, FaBold, FaItalic, FaLink, FaListUl, FaListOl, FaQuoteLeft, FaUnderline, FaStrikethrough, FaHeading, FaChevronDown, FaTable, FaEyeSlash, FaSmile, FaCloudUploadAlt } from 'react-icons/fa';
@@ -11,7 +11,7 @@ import { IGif } from '@giphy/js-types';
 import { useDropzone } from 'react-dropzone';
 import { compressImage } from '@/lib/utils/composeUtils';
 import BeneficiariesInput, { Beneficiary } from '@/components/compose/BeneficiariesInput';
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
 
 // SDK import for markdown editing utilities
 import { useEditorToolbar, ALL_COMMON_EMOJIS } from '@snapie/composer/react';
@@ -218,7 +218,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
     const [isUploading, setIsUploading] = useState(false);
 
     // Aioha for image signing
-    const { aioha, user } = useAioha();
+    const { user } = useKeychain();
 
     // Use SDK toolbar hook for markdown editing
     const toolbar = useEditorToolbar(textareaRef, markdown, setMarkdown);
@@ -248,7 +248,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
 
     // Handle drag & drop image uploads
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        if (!user || !aioha) {
+        if (!user) {
             toast({
                 title: "Not Logged In",
                 description: "Please log in to upload images",
@@ -274,8 +274,8 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                 // Compress image before upload
                 const compressedFile = await compressImage(file);
                 
-                // Upload using user's own signature
-                const url = await uploadImageWithUserSignature(compressedFile, aioha, user);
+                // Upload using user's own signature via Keychain
+                const url = await uploadImageWithKeychain(compressedFile, user);
                 
                 // Insert image using SDK
                 toolbar.image(url, file.name);
@@ -300,7 +300,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                 setIsUploading(false);
             }
         }
-    }, [markdown, setMarkdown, toast, toolbar, user, aioha]);
+    }, [markdown, setMarkdown, toast, toolbar, user]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -311,15 +311,15 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
         noKeyboard: true,
     });
 
-    // Custom image upload handler - uses user's posting key via Aioha
+    // Custom image upload handler - uses user's posting key via Keychain
     const handleImageUpload = useCallback(async (file: File): Promise<string> => {
-        if (!user || !aioha) {
+        if (!user) {
             throw new Error('Please log in to upload images');
         }
         
         try {
-            // Upload using user's own signature (no shared app key needed)
-            const uploadUrl = await uploadImageWithUserSignature(file, aioha, user);
+            // Upload using user's own signature via Keychain
+            const uploadUrl = await uploadImageWithKeychain(file, user);
             return uploadUrl;
         } catch (error) {
             console.error('Image upload failed:', error);
@@ -332,7 +332,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
             });
             throw error;
         }
-    }, [toast, user, aioha]);
+    }, [toast, user]);
 
     // Toolbar actions using SDK
     const handleBold = () => toolbar.bold();
@@ -368,7 +368,7 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
         input.onchange = async (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (file) {
-                if (!user || !aioha) {
+                if (!user) {
                     toast({
                         title: "Not Logged In",
                         description: "Please log in to upload images.",
@@ -391,8 +391,8 @@ const Editor: FC<EditorProps> = ({ markdown, setMarkdown, title, setTitle, hasht
                     // Compress image
                     const compressedFile = await compressImage(file);
                     
-                    // Upload with user's signature
-                    const url = await uploadImageWithUserSignature(compressedFile, aioha, user);
+                    // Upload with user's signature via Keychain
+                    const url = await uploadImageWithKeychain(compressedFile, user);
                     
                     // Insert using SDK
                     toolbar.image(url, file.name);

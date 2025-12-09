@@ -1,17 +1,66 @@
 'use client';
-import { Broadcast, Custom, KeychainKeyTypes, KeychainRequestResponse, KeychainSDK, Login, Post, Transfer, Vote, WitnessVote } from "keychain-sdk";
+import { Broadcast, Custom, Delegation, KeychainKeyTypes, KeychainRequestResponse, KeychainSDK, Login, Post, PowerDown, PowerUp, Transfer, Vote, WitnessVote } from "keychain-sdk";
 import HiveClient from "./hiveclient";
 import crypto from 'crypto';
 import { signImageHash } from "./server-functions";
 import { Account, Discussion, Notifications, PublicKey, PrivateKey, KeyRole } from "@hiveio/dhive";
 import { extractNumber } from "../utils/extractNumber";
 import { ExtendedComment } from "@/hooks/useComments";
-import type { Aioha } from "@aioha/aioha";
-import { KeyTypes } from "@aioha/aioha";
+
+// Keychain extension types
+declare global {
+  interface Window {
+    hive_keychain?: {
+      requestSignBuffer: (
+        username: string,
+        message: string,
+        method: string,
+        callback: (response: { success: boolean; result?: string; message?: string }) => void
+      ) => void;
+    };
+  }
+}
 
 interface HiveKeychainResponse {
   success: boolean
   publicKey: string
+}
+
+/**
+ * Sign and broadcast operations using Keychain
+ * This is a simplified replacement for aioha.signAndBroadcastTx
+ */
+export async function signAndBroadcastWithKeychain(
+  username: string,
+  operations: any[],
+  keyType: 'posting' | 'active' = 'posting'
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    // Convert keyType to KeychainKeyTypes
+    const method = keyType === 'posting' ? KeychainKeyTypes.posting : KeychainKeyTypes.active;
+    
+    const result = await keychain.broadcast({
+      username,
+      operations,
+      method
+    });
+    
+    if (result && result.success) {
+      return { success: true, result };
+    } else {
+      return { 
+        success: false, 
+        error: (result as any)?.message || 'Broadcast failed' 
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }
 
 const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG;
@@ -97,6 +146,78 @@ export async function transferWithKeychain(username: string, destination: string
     console.log({ transfer });
   } catch (error) {
     console.log({ error });
+  }
+}
+
+export async function powerUpWithKeychain(username: string, amount: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const powerUp = await keychain.powerUp({
+      username: username,
+      recipient: username,
+      hive: amount.toFixed(3),
+    } as PowerUp);
+    
+    console.log({ powerUp });
+    return powerUp;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function powerDownWithKeychain(username: string, hivePower: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const powerDown = await keychain.powerDown({
+      username: username,
+      hive_power: hivePower.toFixed(3),
+    } as PowerDown);
+    
+    console.log({ powerDown });
+    return powerDown;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function delegateWithKeychain(username: string, delegatee: string, amount: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const delegation = await keychain.delegation({
+      username: username,
+      delegatee: delegatee,
+      amount: amount.toFixed(3),
+      unit: 'HP',
+    } as Delegation);
+    
+    console.log({ delegation });
+    return delegation;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function broadcastWithKeychain(username: string, operations: any[], method: KeychainKeyTypes = KeychainKeyTypes.active) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const broadcast = await keychain.broadcast({
+      username: username,
+      operations: operations,
+      method: method,
+    } as Broadcast);
+    
+    console.log({ broadcast });
+    return broadcast;
+  } catch (error) {
+    console.log({ error });
+    throw error;
   }
 }
 
@@ -398,70 +519,52 @@ export async function uploadImage(file: File, signature: string, index?: number,
 }
 
 // ============================================================================
-// User-signed Image Upload (using Aioha)
+// IMAGE UPLOAD WITH USER SIGNATURE (via Keychain)
+// ============================================================================
+// This section handles image uploads to images.hive.blog using the user's
+// own posting key for signing via Hive Keychain.
+//
+// How it works (based on condenser/hive.blog implementation):
+// 1. Read the file content into a buffer
+// 2. Prepend "ImageSigningChallenge" to create the challenge buffer
+// 3. Convert to JSON string: JSON.stringify(challengeBuffer)
+// 4. Sign with Keychain's requestSignBuffer (Keychain hashes internally)
+// 5. Upload to: https://images.hive.blog/{username}/{signature}
 // ============================================================================
 
 /**
- * Calculate the SHA256 hash of a file for image signing
- * @param file The file to hash
- * @returns Hex-encoded hash string
+ * Read a file into a Buffer
  */
-export async function calculateImageHash(file: File): Promise<string> {
+async function readFileAsBuffer(file: File): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
     reader.onload = () => {
       if (reader.result) {
-        const content = Buffer.from(reader.result as ArrayBuffer);
-        const hash = crypto.createHash('sha256')
-          .update('ImageSigningChallenge')
-          .update(content as any)
-          .digest('hex');
-        resolve(hash);
+        resolve(Buffer.from(reader.result as ArrayBuffer));
       } else {
-        reject(new Error('Failed to read file.'));
+        reject(new Error('Failed to read file'));
       }
     };
-    
-    reader.onerror = () => {
-      reject(new Error('Error reading file.'));
-    };
-    
+    reader.onerror = () => reject(new Error('Error reading file'));
     reader.readAsArrayBuffer(file);
   });
 }
 
 /**
- * Sign an image hash using Aioha (user's posting key)
- * This replaces the server-side signing with client-side user signing.
+ * Upload an image to Hive image server using the user's Keychain signature.
  * 
- * @param aioha The Aioha instance from useAioha()
- * @param hash The SHA256 hash of the image (hex string)
- * @returns The signature string
- */
-export async function signImageHashWithAioha(aioha: Aioha, hash: string): Promise<string> {
-  const result = await aioha.signMessage(hash, KeyTypes.Posting);
-  
-  if (!result.success || !result.result) {
-    throw new Error((result as any).error || 'Failed to sign image hash');
-  }
-  
-  return result.result;
-}
-
-/**
- * Upload an image to Hive image server using the user's own signature.
- * This is the preferred method as it doesn't require a shared app key.
+ * This follows the exact same approach as condenser (hive.blog):
+ * - Create challenge buffer: ImageSigningChallenge + file content
+ * - Sign JSON.stringify(buffer) with Keychain
+ * - Upload to images.hive.blog/{username}/{signature}
  * 
  * @param file The image file to upload
- * @param aioha The Aioha instance from useAioha()
  * @param username The username of the logged-in user
- * @param options Optional upload options
+ * @param options Optional upload options for progress tracking
  * @returns The URL of the uploaded image
  */
-export async function uploadImageWithUserSignature(
+export async function uploadImageWithKeychain(
   file: File,
-  aioha: Aioha,
   username: string,
   options?: {
     index?: number;
@@ -469,24 +572,49 @@ export async function uploadImageWithUserSignature(
     onProgress?: (progress: number) => void;
   }
 ): Promise<string> {
-  console.log('🔐 uploadImageWithUserSignature called for:', file.name, 'user:', username);
+  console.log('🔐 uploadImageWithKeychain called for:', file.name, 'user:', username);
   
-  // Calculate image hash
-  console.log('🔢 Calculating image hash...');
-  const hash = await calculateImageHash(file);
-  console.log('🔢 Hash calculated:', hash.substring(0, 16) + '...');
+  if (!window.hive_keychain) {
+    throw new Error('Hive Keychain is not installed. Please install it from https://hive-keychain.com/');
+  }
   
-  // Sign with user's posting key via Aioha
-  console.log('✍️ Requesting signature from Aioha...');
-  const signature = await signImageHashWithAioha(aioha, hash);
+  // Read file into buffer
+  console.log('📖 Reading file...');
+  const fileContent = await readFileAsBuffer(file);
+  console.log('📖 File read, size:', fileContent.length, 'bytes');
+  
+  // Create the challenge buffer (ImageSigningChallenge + file content)
+  const prefix = Buffer.from('ImageSigningChallenge');
+  const challengeBuffer = Buffer.concat([prefix, fileContent]);
+  
+  // Convert to JSON string - this is what Keychain expects
+  const challengeString = JSON.stringify(challengeBuffer);
+  console.log('✍️ Requesting signature from Keychain...');
+  
+  // Sign with Keychain - it will hash internally and sign
+  const signature = await new Promise<string>((resolve, reject) => {
+    window.hive_keychain!.requestSignBuffer(
+      username,
+      challengeString,
+      'Posting',
+      (response) => {
+        if (response.success && response.result) {
+          resolve(response.result);
+        } else {
+          reject(new Error(response.message || 'Failed to sign image'));
+        }
+      }
+    );
+  });
+  
   console.log('✍️ Signature received:', signature.substring(0, 20) + '...');
   
   // Upload to Hive image server
-  const formData = new FormData();
-  formData.append("file", file, file.name);
-  
   const uploadUrl = `https://images.hive.blog/${username}/${signature}`;
   console.log('📤 Uploading to:', uploadUrl);
+
+  const formData = new FormData();
+  formData.append("file", file, file.name);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -515,6 +643,7 @@ export async function uploadImageWithUserSignature(
       if (xhr.status === 200) {
         try {
           const response = JSON.parse(xhr.responseText);
+          console.log('✅ Upload successful:', response.url);
           resolve(response.url);
         } catch (e) {
           reject(new Error(`Invalid response format: ${xhr.responseText}`));
@@ -528,6 +657,7 @@ export async function uploadImageWithUserSignature(
             errorMsg = errorResponse.error;
           }
         } catch {}
+        console.error('❌ Upload failed:', errorMsg);
         reject(new Error(errorMsg));
       }
     };

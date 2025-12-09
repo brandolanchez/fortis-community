@@ -8,14 +8,14 @@ import PostGrid from '../blog/PostGrid';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import UserActionButtons from './UserActionButtons';
 import FollowersModal from './FollowersModal';
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
 
 interface ProfilePageProps {
   username: string;
 }
 
 export default function ProfilePage({ username }: ProfilePageProps) {
-  const { user } = useAioha();
+  const { user } = useKeychain();
   const { hiveAccount, isLoading, error } = useHiveAccount(username);
   const [profileMetadata, setProfileMetadata] = useState<{ profileImage: string; coverImage: string; website: string }>({
     profileImage: '',

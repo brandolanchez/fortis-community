@@ -1,17 +1,13 @@
-import { useAioha, AiohaModal } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
 import { Box, Button, HStack, Icon, Tooltip, useColorMode } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { FiBell, FiBook, FiCreditCard, FiHome, FiUser, FiLogIn } from 'react-icons/fi';
-import { KeyTypes } from '@aioha/aioha';
-import { useState } from 'react';
-import '@aioha/react-ui/dist/build.css';
+import { FiBell, FiBook, FiCreditCard, FiHome, FiUser } from 'react-icons/fi';
 
 export default function FooterNavigation() {
 
-    const { user } = useAioha();
+    const { user } = useKeychain();
     const router = useRouter();
     const { colorMode } = useColorMode();
-    const [modalDisplayed, setModalDisplayed] = useState(false);
     const handleNavigation = (path: string) => {
         if (router) {
             router.push(path);
@@ -75,28 +71,8 @@ export default function FooterNavigation() {
                             />
                         </Tooltip>
                     </>
-                ) : (
-                    <Tooltip label="Login" aria-label="Login tooltip">
-                        <Button
-                            onClick={() => setModalDisplayed(true)}
-                            variant="ghost"
-                            leftIcon={<Icon as={FiLogIn} boxSize={4} />}
-                        />
-                    </Tooltip>
-                )}
+                ) : null}
             </HStack>
-            <div className={colorMode}>
-                <AiohaModal
-                    displayed={modalDisplayed}
-                    loginOptions={{
-                        msg: 'Login',
-                        keyType: KeyTypes.Posting,
-                        loginTitle: 'Login',
-                    }}
-                    onLogin={console.log}
-                    onClose={() => setModalDisplayed(false)}
-                />
-            </div>
         </Box>
     );
 }

@@ -8,18 +8,12 @@ import { hackerTheme } from '@/themes/hacker'
 import { nounsDaoTheme } from '@/themes/nounish'
 import { forestTheme } from '@/themes/forest'
 
-
-import { Aioha } from '@aioha/aioha'
-import { AiohaProvider } from '@aioha/react-ui'
-
 import { useEffect } from 'react'
 import { windows95Theme } from '@/themes/windows95'
 import { hiveBRTheme } from '@/themes/hivebr'
 import { cannabisTheme } from '@/themes/cannabis'
 import { mengaoTheme } from '@/themes/mengao'
-import { UserProvider } from '@/contexts/UserContext'
-
-const aioha = new Aioha()
+import { KeychainProvider } from '@/contexts/KeychainContext'
 
 const themeMap = {
   forest: forestTheme,
@@ -95,17 +89,6 @@ function styleIframe(iframe: HTMLIFrameElement, data: any) {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    aioha.registerKeychain()
-    aioha.registerLedger()
-    aioha.registerPeakVault()
-    aioha.registerHiveAuth({
-      name: process.env.NEXT_PUBLIC_COMMUNITY_NAME || 'MyCommunity',
-      description: ''
-    })
-    aioha.loadAuth()
-  })
-
   // Global listener for 3Speak video player orientation
   useEffect(() => {
     // Prevent Strict Mode from double-attaching the listener
@@ -160,11 +143,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ChakraProvider theme={selectedTheme}>
-      <AiohaProvider aioha={aioha}>
-        <UserProvider>
-          {children}
-        </UserProvider>
-      </AiohaProvider>
+      <KeychainProvider>
+        {children}
+      </KeychainProvider>
     </ChakraProvider>
   )
 }

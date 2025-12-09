@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import useHiveAccount from "@/hooks/useHiveAccount";
 import { Box, Grid, GridItem, Text, Icon, HStack, Divider, Spinner, useDisclosure } from "@chakra-ui/react";
 import { FaExchangeAlt, FaPiggyBank, FaStore, FaShoppingCart, FaArrowDown, FaShareAlt, FaDollarSign, FaArrowUp, FaPaperPlane } from "react-icons/fa";
-import { convertVestToHive } from '@/lib/hive/client-functions'; 
+import { convertVestToHive, transferWithKeychain, powerUpWithKeychain, powerDownWithKeychain, delegateWithKeychain, broadcastWithKeychain } from '@/lib/hive/client-functions'; 
 import { extractNumber } from '@/lib/utils/extractNumber';
 import WalletModal from '@/components/wallet/WalletModal'; 
 import { useRouter } from 'next/navigation';
-import { useAioha } from '@aioha/react-ui';
-import { Asset, KeyTypes } from '@aioha/aioha';
+import { useKeychain } from '@/contexts/KeychainContext';
+import { KeychainKeyTypes } from 'keychain-sdk';
 
 interface MainWalletProps {
     username: string;
@@ -17,7 +17,7 @@ export default function MainWallet({ username }: MainWalletProps) {
 
     const router = useRouter()
 
-    const { user, aioha } = useAioha()
+    const { user } = useKeychain()
 
     const { hiveAccount, isLoading, error } = useHiveAccount(username);
     const { isOpen, onOpen, onClose } = useDisclosure();
@@ -46,105 +46,109 @@ export default function MainWallet({ username }: MainWalletProps) {
     };
 
     async function handleConfirm (amount: number, username?: string, memo?: string) {
-        if (!modalContent) return;
+        if (!modalContent || !user) return;
 
-        switch (modalContent.title) {
-            case 'Send HIVE':
-                // Handle Send Hive logic here
-                if (username) {
-                    await aioha.transfer(username, amount, Asset.HIVE, memo)
-                }
-                break;
-            case 'Power Up':
-                await aioha.stakeHive(amount)
-                break;
-            case 'Convert to HBD':
-                aioha.signAndBroadcastTx([
-                    [
-                        "convert",
-                        {
-                          "owner": user,
-                          "requestid": Math.floor(1000000000 + Math.random() * 9000000000),
-                          "amount": {
-                            "amount": amount.toFixed(3),
-                            "precision": 3,
-                            "nai": "@@000000013"
+        try {
+            switch (modalContent.title) {
+                case 'Send HIVE':
+                    if (username) {
+                        await transferWithKeychain(user, username, amount.toFixed(3), memo || '', 'HIVE');
+                    }
+                    break;
+                case 'Power Up':
+                    await powerUpWithKeychain(user, amount);
+                    break;
+                case 'Convert to HBD':
+                    await broadcastWithKeychain(user, [
+                        [
+                            "convert",
+                            {
+                              "owner": user,
+                              "requestid": Math.floor(1000000000 + Math.random() * 9000000000),
+                              "amount": {
+                                "amount": amount.toFixed(3),
+                                "precision": 3,
+                                "nai": "@@000000013"
+                              }
+                            }
+                          ]
+                      ], KeychainKeyTypes.active);
+                    break;
+                case 'HIVE Savings':
+                    await broadcastWithKeychain(user, [
+                        [
+                          "transfer_to_savings",
+                          {
+                            "from": user,
+                            "to": user,
+                            "amount": amount.toFixed(3) + " HIVE",
+                            "memo": memo || ""
                           }
-                        }
-                      ]
-                  ], KeyTypes.Active)
-                break;
-            case 'HIVE Savings':
-                await aioha.signAndBroadcastTx([
-                    [
-                      "transfer_to_savings",
-                      {
-                        "from": user,
-                        "to": user,
-                        "amount": amount.toFixed(3) + " HIVE",
-                        "memo": memo || ""
-                      }
-                    ]
-                  ], KeyTypes.Active)
-                break;
-            case 'Power Down' :
-                const unstake = await aioha.unstakeHive(amount)
-                break;
-            case 'Delegate':
-                if (username) {
-                    const delegate = await aioha.delegateStakedHive(username, amount)
-                }
-                break;
-            case 'Send HBD':
-                if (username) {
-                    await aioha.transfer(username, amount, Asset.HBD, memo)
-                }
-                break;
-            case 'HBD Savings':
-                await aioha.signAndBroadcastTx([
-                    [
-                      "transfer_to_savings",
-                      {
-                        "from": user,
-                        "to": user,
-                        "amount": amount.toFixed(3) + " HBD",
-                        "memo": memo || ""
-                      }
-                    ]
-                  ], KeyTypes.Active)
-                break;
-            case 'Withdraw HBD Savings':
-                await aioha.signAndBroadcastTx([
-                    [
-                      "transfer_from_savings",
-                      {
-                        "from": user,
-                        "to": user,
-                        "request_id": Math.floor(1000000000 + Math.random() * 9000000000),
-                        "amount": amount.toFixed(3) + " HBD",
-                        "memo": memo || ""
-                      }
-                    ]
-                  ], KeyTypes.Active)
-                break;
-            case 'Withdraw HIVE Savings':
-                await aioha.signAndBroadcastTx([
-                    [
-                      "transfer_from_savings",
-                      {
-                        "from": user,
-                        "to": user,
-                        "request_id": Math.floor(1000000000 + Math.random() * 9000000000),
-                        "amount": amount.toFixed(3) + " HIVE",
-                        "memo": memo || ""
-                      }
-                    ]
-                ], KeyTypes.Active)
-                break;
-            default:
-                console.log('Default action - Amount:', amount, 'Memo:', memo);
-                break;
+                        ]
+                      ], KeychainKeyTypes.active);
+                    break;
+                case 'Power Down' :
+                    await powerDownWithKeychain(user, amount);
+                    break;
+                case 'Delegate':
+                    if (username) {
+                        await delegateWithKeychain(user, username, amount);
+                    }
+                    break;
+                case 'Send HBD':
+                    if (username) {
+                        await transferWithKeychain(user, username, amount.toFixed(3), memo || '', 'HBD');
+                    }
+                    break;
+                case 'HBD Savings':
+                    await broadcastWithKeychain(user, [
+                        [
+                          "transfer_to_savings",
+                          {
+                            "from": user,
+                            "to": user,
+                            "amount": amount.toFixed(3) + " HBD",
+                            "memo": memo || ""
+                          }
+                        ]
+                      ], KeychainKeyTypes.active);
+                    break;
+                case 'Withdraw HBD Savings':
+                    await broadcastWithKeychain(user, [
+                        [
+                          "transfer_from_savings",
+                          {
+                            "from": user,
+                            "to": user,
+                            "request_id": Math.floor(1000000000 + Math.random() * 9000000000),
+                            "amount": amount.toFixed(3) + " HBD",
+                            "memo": memo || ""
+                          }
+                        ]
+                      ], KeychainKeyTypes.active);
+                    break;
+                case 'Withdraw HIVE Savings':
+                    await broadcastWithKeychain(user, [
+                        [
+                          "transfer_from_savings",
+                          {
+                            "from": user,
+                            "to": user,
+                            "request_id": Math.floor(1000000000 + Math.random() * 9000000000),
+                            "amount": amount.toFixed(3) + " HIVE",
+                            "memo": memo || ""
+                          }
+                        ]
+                    ], KeychainKeyTypes.active);
+                    break;
+                default:
+                    console.log('Default action - Amount:', amount, 'Memo:', memo);
+                    break;
+            }
+        } catch (error) {
+            console.error('Transaction failed:', error);
         }
+        
         onClose();
     };
 

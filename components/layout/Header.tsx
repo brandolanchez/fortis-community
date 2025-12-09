@@ -1,18 +1,17 @@
 'use client'
 import React, { useEffect, useState } from 'react';
-import { Box, Flex, Text, Input, Button, Image, useColorMode } from '@chakra-ui/react';
-
-import { useAioha, AiohaModal } from '@aioha/react-ui';
-import { KeyTypes } from '@aioha/aioha';
-import '@aioha/react-ui/dist/build.css';
+import { Box, Flex, Text, Input, Button, Image, useColorMode, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useToast } from '@chakra-ui/react';
 import { getCommunityInfo, getProfile } from '@/lib/hive/client-functions';
+import { useKeychain } from '@/contexts/KeychainContext';
 
 export default function Header() {
     const { colorMode } = useColorMode();
     const [modalDisplayed, setModalDisplayed] = useState(false);
     const [profileInfo, setProfileInfo] = useState<any>();
     const [communityInfo, setCommunityInfo] = useState<any>();
-    const { user } = useAioha();
+    const [username, setUsername] = useState('');
+    const { user, login, logout, isLoggedIn } = useKeychain();
+    const toast = useToast();
 
     const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG;
 
@@ -79,22 +78,59 @@ export default function Header() {
                         )}
                     </Flex>
                 </Flex>
-                <Button onClick={() => setModalDisplayed(true)}>
-                    {user ?? 'Login'}
-                </Button>
+                {isLoggedIn ? (
+                    <Button onClick={logout}>
+                        Logout ({user})
+                    </Button>
+                ) : (
+                    <Button onClick={() => setModalDisplayed(true)}>
+                        Login
+                    </Button>
+                )}
             </Flex>
-            <div className={colorMode}>
-                <AiohaModal
-                    displayed={modalDisplayed}
-                    loginOptions={{
-                        msg: 'Login',
-                        keyType: KeyTypes.Posting,
-                        loginTitle: 'Login',
-                    }}
-                    onLogin={console.log}
-                    onClose={setModalDisplayed}
-                />
-            </div>
+            <Modal isOpen={modalDisplayed} onClose={() => setModalDisplayed(false)}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Login with Hive Keychain</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody pb={6}>
+                        <Input
+                            placeholder="Enter your Hive username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            mb={4}
+                        />
+                        <Button
+                            colorScheme="blue"
+                            width="full"
+                            onClick={async () => {
+                                try {
+                                    const success = await login(username);
+                                    if (success) {
+                                        setModalDisplayed(false);
+                                        setUsername('');
+                                        toast({
+                                            title: 'Success!',
+                                            description: `Logged in as @${username}`,
+                                            status: 'success',
+                                            duration: 3000,
+                                        });
+                                    }
+                                } catch (error) {
+                                    toast({
+                                        title: 'Login failed',
+                                        description: error instanceof Error ? error.message : 'Please try again',
+                                        status: 'error',
+                                        duration: 5000,
+                                    });
+                                }
+                            }}
+                        >
+                            Login
+                        </Button>
+                    </ModalBody>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 }

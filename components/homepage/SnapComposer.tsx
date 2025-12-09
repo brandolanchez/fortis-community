@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Box, Textarea, HStack, Button, Image, IconButton, Wrap, Spinner, Progress, Text, VStack } from '@chakra-ui/react';
-import { useAioha } from '@aioha/react-ui';
-import { KeyTypes } from '@aioha/aioha';
+import { useKeychain } from '@/contexts/KeychainContext';
 import GiphySelector from './GiphySelector';
 import ImageUploader from './ImageUploader';
 import VideoUploader from './VideoUploader';
@@ -11,7 +10,7 @@ import { CloseIcon } from '@chakra-ui/icons';
 import { FaImage, FaVideo, FaMicrophone } from 'react-icons/fa';
 import { MdGif } from 'react-icons/md';
 import { Comment } from '@hiveio/dhive';
-import { getLastSnapsContainer, uploadImageWithUserSignature } from '@/lib/hive/client-functions';
+import { getLastSnapsContainer, uploadImageWithKeychain, signAndBroadcastWithKeychain } from '@/lib/hive/client-functions';
 
 // SDK imports
 import { snapieComposer, snapieVideoComposer } from '@/lib/utils/composerSdk';
@@ -32,7 +31,7 @@ interface SnapComposerProps {
 }
 
 export default function SnapComposer ({ pa, pp, onNewComment, post = false, onClose }: SnapComposerProps) {
-    const { user, aioha } = useAioha();
+    const { user } = useKeychain();
 
     const postBodyRef = useRef<HTMLTextAreaElement>(null);
     const [images, setImages] = useState<File[]>([]);
@@ -87,13 +86,13 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 console.log('✅ Video uploaded:', videoResult.value.embedUrl);
                 
                 // Try to upload and set thumbnail
-                if (thumbnailBlob.status === 'fulfilled' && thumbnailBlob.value) {
+                if (thumbnailBlob.status === 'fulfilled' && thumbnailBlob.value && user) {
                     try {
-                        // Try Hive first (with user's signature), fallback to IPFS
+                        // Try Hive first (with user's signature via Aioha), fallback to IPFS
                         let thumbnailUrl: string;
                         try {
                             const thumbnailFile = new File([thumbnailBlob.value], `${file.name}_thumb.jpg`, { type: 'image/jpeg' });
-                            thumbnailUrl = await uploadImageWithUserSignature(thumbnailFile, aioha, user || '');
+                            thumbnailUrl = await uploadImageWithKeychain(thumbnailFile, user);
                         } catch {
                             thumbnailUrl = await uploadToIPFS(thumbnailBlob.value);
                         }
@@ -112,7 +111,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
             }
         } catch (error) {
             console.error('❌ Video upload failed:', error);
-            alert('Failed to upload video. Please try again.');
+            alert('Failed to upload video. Please try again.');;
             setSelectedVideo(null);
             setVideoUploadProgress(0);
         } finally {
@@ -123,11 +122,6 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
     async function handleComment() {
         if (!user) {
             alert('You must be logged in to post.');
-            return;
-        }
-        
-        if (!aioha) {
-            alert('Authentication not ready. Please refresh and try again.');
             return;
         }
         
@@ -142,7 +136,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
         setUploadProgress([]);
 
         try {
-            // Upload images first (using user's signature)
+            // Upload images first (using user's signature via Aioha)
             let imageUrls: string[] = [];
             if (images.length > 0) {
                 console.log('📤 Starting image upload for', images.length, 'images');
@@ -152,7 +146,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 const uploadedImages = await Promise.all(images.map(async (image, index) => {
                     try {
                         console.log(`📷 Uploading image ${index + 1}:`, image.name);
-                        const url = await uploadImageWithUserSignature(image, aioha, user, {
+                        const url = await uploadImageWithKeychain(image, user, {
                             index,
                             setUploadProgress
                         });
@@ -192,10 +186,11 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 audioEmbedUrl: audioEmbedUrl || undefined,
             });
 
-            // Broadcast with Aioha
-            const commentResponse = await aioha.signAndBroadcastTx(
-                result.operations, 
-                KeyTypes.Posting
+            // Broadcast with Keychain
+            const commentResponse = await signAndBroadcastWithKeychain(
+                user,
+                result.operations,
+                'posting'
             );
             
             if (commentResponse.success) {

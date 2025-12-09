@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { fetchNewNotifications } from '@/lib/hive/client-functions';
+import { fetchNewNotifications, broadcastWithKeychain } from '@/lib/hive/client-functions';
 import { Box, Text, Stack, Spinner, Button, HStack } from '@chakra-ui/react';
-import { useAioha } from '@aioha/react-ui';
-import { KeyTypes } from '@aioha/aioha';
+import { useKeychain } from '@/contexts/KeychainContext';
+import { KeychainKeyTypes } from 'keychain-sdk';
 import { Notifications } from '@hiveio/dhive';
 import NotificationItem from './NotificationItem'; 
 
@@ -11,7 +11,7 @@ interface NotificationCompProps {
 }
 
 export default function NotificationsComp({ username } : NotificationCompProps) {
-  const { user, aioha } = useAioha();
+  const { user } = useKeychain();
   const [notifications, setNotifications] = useState<Notifications[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Add isLoading state
 
@@ -34,16 +34,18 @@ export default function NotificationsComp({ username } : NotificationCompProps) 
   }, [user, username]);
 
   async function handleMarkAsRead () {
+    if (!user) return;
+    
     const now = new Date().toISOString(); 
     const json = JSON.stringify(["setLastRead", { date: now }]);
-    const result = await aioha.signAndBroadcastTx([
+    const result = await broadcastWithKeychain(user, [
       ['custom_json', {
         required_auths: [],
         required_posting_auths: [user],
         id: 'notify',
         json: json,
       }]
-    ], KeyTypes.Posting)
+    ], KeychainKeyTypes.posting)
     console.log("Mark as Read clicked", result);
   };
 

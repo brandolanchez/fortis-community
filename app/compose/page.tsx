@@ -1,6 +1,6 @@
 'use client'
-import { useAioha } from '@aioha/react-ui'
-import { KeyTypes } from '@aioha/aioha'
+import { useKeychain } from '@/contexts/KeychainContext'
+import { signAndBroadcastWithKeychain } from '@/lib/hive/client-functions'
 import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button, useToast } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
@@ -26,7 +26,7 @@ export default function Home() {
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryInputType[]>([{ account: 'snapie', weight: 300 }]) // Default 3% to snapie
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { aioha, user } = useAioha()
+  const { user } = useKeychain()
   const toast = useToast()
   const router = useRouter()
   const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'blog'
@@ -126,17 +126,17 @@ export default function Home() {
         }
       })
 
-      // Submit to Hive blockchain using Aioha
-      console.log('📤 Submitting to Hive via Aioha:', { 
+      // Submit to Hive blockchain using Keychain
+      console.log('📤 Submitting to Hive via Keychain:', { 
         operations: composerResult.operations,
         permlink: composerResult.permlink,
         username,
         operationAuthor: (composerResult.operations[0] as any)?.[1]?.author
       });
       
-      const result = await aioha.signAndBroadcastTx(composerResult.operations, KeyTypes.Posting)
+      const result = await signAndBroadcastWithKeychain(username, composerResult.operations, 'posting')
       
-      console.log('📥 Aioha response:', result);
+      console.log('📥 Keychain response:', result);
 
       // Check if submission was successful
       if (result.success) {
