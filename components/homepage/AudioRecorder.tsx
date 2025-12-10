@@ -93,11 +93,14 @@ export default function AudioRecorder({ isOpen, onClose, onAudioRecorded, userna
 
     } catch (error) {
       console.error('Error accessing microphone:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
       toast({
-        title: 'Microphone Error',
-        description: 'Could not access microphone. Please check permissions.',
+        title: 'Microphone Access Denied',
+        description: `Cannot access microphone: ${errorMessage}. If using Hive Keychain browser, try opening this site in Chrome/Brave instead. This may be a Keychain browser bug.`,
         status: 'error',
-        duration: 3000,
+        duration: 8000,
+        isClosable: true,
       });
     }
   };

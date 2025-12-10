@@ -8,14 +8,15 @@ import PostGrid from '../blog/PostGrid';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import UserActionButtons from './UserActionButtons';
 import FollowersModal from './FollowersModal';
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
+import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 interface ProfilePageProps {
   username: string;
 }
 
 export default function ProfilePage({ username }: ProfilePageProps) {
-  const { user } = useAioha();
+  const { user } = useKeychain();
   const { hiveAccount, isLoading, error } = useHiveAccount(username);
   const [profileMetadata, setProfileMetadata] = useState<{ profileImage: string; coverImage: string; website: string }>({
     profileImage: '',
@@ -147,7 +148,7 @@ export default function ProfilePage({ username }: ProfilePageProps) {
   <Flex alignItems="center" zIndex={2} position="relative">
 
     <Avatar
-      src={profileMetadata.profileImage}
+      src={getHiveAvatarUrl(username, 'large')}
       name={hiveAccount?.name}
       borderRadius="full"
       boxSize="100px"

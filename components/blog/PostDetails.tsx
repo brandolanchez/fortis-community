@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Discussion } from '@hiveio/dhive';
 import { FaHeart, FaComment, FaRegHeart, FaShare } from 'react-icons/fa';
 import { getPostDate } from '@/lib/utils/GetPostDate';
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
+import { vote } from '@/lib/hive/client-functions';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
 
@@ -14,7 +15,7 @@ interface PostDetailsProps {
 export default function PostDetails({ post }: PostDetailsProps) {
     const { title, author, body, created } = post;
     const postDate = getPostDate(created);
-    const { aioha, user } = useAioha();
+    const { user } = useKeychain();
     const [sliderValue, setSliderValue] = useState(100);
     const [showSlider, setShowSlider] = useState(false);
     const [voted, setVoted] = useState(post.active_votes?.some(item => item.voter === user));
@@ -49,9 +50,15 @@ export default function PostDetails({ post }: PostDetailsProps) {
         
         // Send to blockchain
         try {
-            const vote = await aioha.vote(post.author, post.permlink, sliderValue * 100);
+            if (!user) return;
+            const voteResult = await vote({
+                username: user,
+                author: post.author,
+                permlink: post.permlink,
+                weight: sliderValue * 100
+            });
             
-            if (!vote.success) {
+            if (!voteResult.success) {
                 // Rollback on failure
                 setVoted(wasVoted);
                 setVoteCount(previousCount);

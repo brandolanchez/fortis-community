@@ -1,14 +1,13 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Box, VStack, Button, Icon, Image, Spinner, Flex, Text, useColorMode, transition, Tooltip, useBreakpointValue } from '@chakra-ui/react';
+import { Box, VStack, Button, Icon, Image, Spinner, Flex, Text, useColorMode, transition, Tooltip, useBreakpointValue, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, useToast } from '@chakra-ui/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { AiohaModal, useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
 import { FiHome, FiBell, FiUser, FiShoppingCart, FiBook, FiCreditCard, FiLogIn, FiLogOut } from 'react-icons/fi';
 import { Notifications } from '@hiveio/dhive';
 import { fetchNewNotifications, getCommunityInfo, getProfile } from '@/lib/hive/client-functions';
 import { animate, color, motion, px } from 'framer-motion';
-import { KeyTypes } from '@aioha/aioha';
-import '@aioha/react-ui/dist/build.css';
+import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 interface ProfileInfo {
     metadata: {
@@ -27,7 +26,7 @@ interface CommunityInfo {
 const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG;
 
 export default function Sidebar() {
-    const { user } = useAioha();
+    const { user, login, logout, isLoggedIn } = useKeychain();
     const router = useRouter();
     const pathname = usePathname();
     const [notifications, setNotifications] = useState<Notifications[]>([]);
@@ -36,6 +35,8 @@ export default function Sidebar() {
     const [loading, setLoading] = useState(true); // Loading state
     const { colorMode } = useColorMode();
     const [modalDisplayed, setModalDisplayed] = useState(false);
+    const [username, setUsername] = useState('');
+    const toast = useToast();
     
     // Check if we should force compact mode (compose page)
     const forceCompact = pathname === '/compose';
@@ -121,9 +122,9 @@ export default function Sidebar() {
                     ) : (
                         <>
                             <Flex align="center" mb={4} display={fullBreakpoint}>
-                                {profileInfo?.metadata?.profile?.profile_image && (
+                                {communityTag && (
                                     <Image
-                                        src={profileInfo.metadata.profile.profile_image}
+                                        src={getHiveAvatarUrl(communityTag, 'medium')}
                                         alt="Profile Image"
                                         boxSize="50px"
                                         borderRadius="full"
@@ -134,9 +135,9 @@ export default function Sidebar() {
                             </Flex>
                             {/* Icon only for compact view */}
                             <Box display={compactBreakpoint} mb={4} w="40px" h="40px">
-                                {profileInfo?.metadata?.profile?.profile_image && (
+                                {communityTag && (
                                     <Image
-                                        src={profileInfo.metadata.profile.profile_image}
+                                        src={getHiveAvatarUrl(communityTag, 'small')}
                                         alt="Profile Image"
                                         boxSize="40px"
                                         borderRadius="full"
@@ -218,7 +219,7 @@ export default function Sidebar() {
                                         leftIcon={
                                             user ? (
                                                 <Image
-                                                    src={`https://images.hive.blog/u/${user}/avatar`}
+                                                    src={getHiveAvatarUrl(user, 'small')}
                                                     alt="Profile Image"
                                                     boxSize={4}
                                                     borderRadius="full"
@@ -251,36 +252,71 @@ export default function Sidebar() {
                             </Tooltip>
                         </>
                     )}
+                    
+                    {/* Login/Logout Button */}
+                    <Tooltip label={isLoggedIn ? 'Logout' : 'Login'} placement="right" hasArrow isDisabled={!isCompactMode}>
+                        <Box w="full" mt="auto">
+                            <Button
+                                onClick={() => isLoggedIn ? logout() : setModalDisplayed(true)}
+                                variant="solid"
+                                colorScheme="teal"
+                                w="full"
+                                justifyContent={iconJustify}
+                                leftIcon={<Icon as={isLoggedIn ? FiLogOut : FiLogIn} boxSize={4} />}
+                                px={3}
+                                borderRadius="md"
+                            >
+                                <Text display={textDisplay}>{isLoggedIn ? 'Logout' : 'Login'}</Text>
+                            </Button>
+                        </Box>
+                    </Tooltip>
                 </VStack>
-                <div className={colorMode}>
-                    <AiohaModal
-                        displayed={modalDisplayed}
-                        loginOptions={{
-                            msg: 'Login',
-                            keyType: KeyTypes.Posting,
-                            loginTitle: 'Login',
-                        }}
-                        onLogin={console.log}
-                        onClose={() => setModalDisplayed(false)}
-                    />
-                </div>
-                <Tooltip label={user ? 'Logout' : 'Login'} placement="right" hasArrow isDisabled={!isCompactMode}>
-                    <Box w="full" px={forceCompact ? 0 : { sm: 0, md: 4 }}>
-                        <Button
-                            onClick={() => setModalDisplayed(true)}
-                            variant="solid"
-                            colorScheme="teal"
-                            w="full"
-                            mt="auto"
-                            px={{ sm: 2, md: 4 }}
-                            leftIcon={<Icon as={user ? FiLogOut : FiLogIn} boxSize={4} display={compactBreakpoint} />}
-                            justifyContent="center"
-                        >
-                            <Box display={textDisplay}>{user ? 'Logout' : 'Login'}</Box>
-                        </Button>
-                    </Box>
-                </Tooltip>
             </Flex>
+            
+            {/* Login Modal */}
+            <Modal isOpen={modalDisplayed} onClose={() => setModalDisplayed(false)}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Login with Hive Keychain</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody pb={6}>
+                        <Input
+                            placeholder="Enter your Hive username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            mb={4}
+                        />
+                        <Button
+                            colorScheme="blue"
+                            width="full"
+                            onClick={async () => {
+                                try {
+                                    const success = await login(username);
+                                    if (success) {
+                                        setModalDisplayed(false);
+                                        setUsername('');
+                                        toast({
+                                            title: 'Success!',
+                                            description: `Logged in as @${username}`,
+                                            status: 'success',
+                                            duration: 3000,
+                                        });
+                                    }
+                                } catch (error) {
+                                    toast({
+                                        title: 'Login failed',
+                                        description: error instanceof Error ? error.message : 'Please try again',
+                                        status: 'error',
+                                        duration: 5000,
+                                    });
+                                }
+                            }}
+                        >
+                            Login
+                        </Button>
+                    </ModalBody>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 

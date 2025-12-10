@@ -1,5 +1,5 @@
 'use client';
-import { Broadcast, Custom, KeychainKeyTypes, KeychainRequestResponse, KeychainSDK, Login, Post, Transfer, Vote, WitnessVote } from "keychain-sdk";
+import { Broadcast, Custom, Delegation, KeychainKeyTypes, KeychainRequestResponse, KeychainSDK, Login, Post, PowerDown, PowerUp, Transfer, Vote, WitnessVote } from "keychain-sdk";
 import HiveClient from "./hiveclient";
 import crypto from 'crypto';
 import { signImageHash } from "./server-functions";
@@ -7,9 +7,60 @@ import { Account, Discussion, Notifications, PublicKey, PrivateKey, KeyRole } fr
 import { extractNumber } from "../utils/extractNumber";
 import { ExtendedComment } from "@/hooks/useComments";
 
+// Keychain extension types
+declare global {
+  interface Window {
+    hive_keychain?: {
+      requestSignBuffer: (
+        username: string,
+        message: string,
+        method: string,
+        callback: (response: { success: boolean; result?: string; message?: string }) => void
+      ) => void;
+    };
+  }
+}
+
 interface HiveKeychainResponse {
   success: boolean
   publicKey: string
+}
+
+/**
+ * Sign and broadcast operations using Keychain
+ * This is a simplified replacement for aioha.signAndBroadcastTx
+ */
+export async function signAndBroadcastWithKeychain(
+  username: string,
+  operations: any[],
+  keyType: 'posting' | 'active' = 'posting'
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    // Convert keyType to KeychainKeyTypes
+    const method = keyType === 'posting' ? KeychainKeyTypes.posting : KeychainKeyTypes.active;
+    
+    const result = await keychain.broadcast({
+      username,
+      operations,
+      method
+    });
+    
+    if (result && result.success) {
+      return { success: true, result };
+    } else {
+      return { 
+        success: false, 
+        error: (result as any)?.message || 'Broadcast failed' 
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }
 
 const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG;
@@ -95,6 +146,78 @@ export async function transferWithKeychain(username: string, destination: string
     console.log({ transfer });
   } catch (error) {
     console.log({ error });
+  }
+}
+
+export async function powerUpWithKeychain(username: string, amount: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const powerUp = await keychain.powerUp({
+      username: username,
+      recipient: username,
+      hive: amount.toFixed(3),
+    } as PowerUp);
+    
+    console.log({ powerUp });
+    return powerUp;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function powerDownWithKeychain(username: string, hivePower: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const powerDown = await keychain.powerDown({
+      username: username,
+      hive_power: hivePower.toFixed(3),
+    } as PowerDown);
+    
+    console.log({ powerDown });
+    return powerDown;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function delegateWithKeychain(username: string, delegatee: string, amount: number) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const delegation = await keychain.delegation({
+      username: username,
+      delegatee: delegatee,
+      amount: amount.toFixed(3),
+      unit: 'HP',
+    } as Delegation);
+    
+    console.log({ delegation });
+    return delegation;
+  } catch (error) {
+    console.log({ error });
+    throw error;
+  }
+}
+
+export async function broadcastWithKeychain(username: string, operations: any[], method: KeychainKeyTypes = KeychainKeyTypes.active) {
+  try {
+    const keychain = new KeychainSDK(window);
+    
+    const broadcast = await keychain.broadcast({
+      username: username,
+      operations: operations,
+      method: method,
+    } as Broadcast);
+    
+    console.log({ broadcast });
+    return broadcast;
+  } catch (error) {
+    console.log({ error });
+    throw error;
   }
 }
 
@@ -389,6 +512,158 @@ export async function uploadImage(file: File, signature: string, index?: number,
 
     xhr.onerror = () => {
       reject(new Error('Network error'));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+// ============================================================================
+// IMAGE UPLOAD WITH USER SIGNATURE (via Keychain)
+// ============================================================================
+// This section handles image uploads to images.hive.blog using the user's
+// own posting key for signing via Hive Keychain.
+//
+// How it works (based on condenser/hive.blog implementation):
+// 1. Read the file content into a buffer
+// 2. Prepend "ImageSigningChallenge" to create the challenge buffer
+// 3. Convert to JSON string: JSON.stringify(challengeBuffer)
+// 4. Sign with Keychain's requestSignBuffer (Keychain hashes internally)
+// 5. Upload to: https://images.hive.blog/{username}/{signature}
+// ============================================================================
+
+/**
+ * Read a file into a Buffer
+ */
+async function readFileAsBuffer(file: File): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        resolve(Buffer.from(reader.result as ArrayBuffer));
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Error reading file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Upload an image to Hive image server using the user's Keychain signature.
+ * 
+ * This follows the exact same approach as condenser (hive.blog):
+ * - Create challenge buffer: ImageSigningChallenge + file content
+ * - Sign JSON.stringify(buffer) with Keychain
+ * - Upload to images.hive.blog/{username}/{signature}
+ * 
+ * @param file The image file to upload
+ * @param username The username of the logged-in user
+ * @param options Optional upload options for progress tracking
+ * @returns The URL of the uploaded image
+ */
+export async function uploadImageWithKeychain(
+  file: File,
+  username: string,
+  options?: {
+    index?: number;
+    setUploadProgress?: React.Dispatch<React.SetStateAction<number[]>>;
+    onProgress?: (progress: number) => void;
+  }
+): Promise<string> {
+  console.log('🔐 uploadImageWithKeychain called for:', file.name, 'user:', username);
+  
+  if (!window.hive_keychain) {
+    throw new Error('Hive Keychain is not installed. Please install it from https://hive-keychain.com/');
+  }
+  
+  // Read file into buffer
+  console.log('📖 Reading file...');
+  const fileContent = await readFileAsBuffer(file);
+  console.log('📖 File read, size:', fileContent.length, 'bytes');
+  
+  // Create the challenge buffer (ImageSigningChallenge + file content)
+  const prefix = Buffer.from('ImageSigningChallenge');
+  const challengeBuffer = Buffer.concat([prefix, fileContent]);
+  
+  // Convert to JSON string - this is what Keychain expects
+  const challengeString = JSON.stringify(challengeBuffer);
+  console.log('✍️ Requesting signature from Keychain...');
+  
+  // Sign with Keychain - it will hash internally and sign
+  const signature = await new Promise<string>((resolve, reject) => {
+    window.hive_keychain!.requestSignBuffer(
+      username,
+      challengeString,
+      'Posting',
+      (response) => {
+        if (response.success && response.result) {
+          resolve(response.result);
+        } else {
+          reject(new Error(response.message || 'Failed to sign image'));
+        }
+      }
+    );
+  });
+  
+  console.log('✍️ Signature received:', signature.substring(0, 20) + '...');
+  
+  // Upload to Hive image server
+  const uploadUrl = `https://images.hive.blog/${username}/${signature}`;
+  console.log('📤 Uploading to:', uploadUrl);
+
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadUrl, true);
+
+    // Handle progress updates
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = (event.loaded / event.total) * 100;
+        
+        // Call progress callback if provided
+        options?.onProgress?.(progress);
+        
+        // Update progress array if provided (for batch uploads)
+        if (options?.index !== undefined && options?.setUploadProgress) {
+          options.setUploadProgress((prevProgress: number[]) => {
+            const updatedProgress = [...prevProgress];
+            updatedProgress[options.index!] = progress;
+            return updatedProgress;
+          });
+        }
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          console.log('✅ Upload successful:', response.url);
+          resolve(response.url);
+        } catch (e) {
+          reject(new Error(`Invalid response format: ${xhr.responseText}`));
+        }
+      } else {
+        // Provide more helpful error messages
+        let errorMsg = `Upload failed: ${xhr.status} - ${xhr.statusText}`;
+        try {
+          const errorResponse = JSON.parse(xhr.responseText);
+          if (errorResponse.error) {
+            errorMsg = errorResponse.error;
+          }
+        } catch {}
+        console.error('❌ Upload failed:', errorMsg);
+        reject(new Error(errorMsg));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error during image upload'));
     };
 
     xhr.send(formData);
@@ -725,10 +1000,10 @@ export interface Transaction {
 export async function getTransactionHistory(
   username: string,
   start: number = -1,
-  limit: number = 100
+  limit: number = 1000
 ): Promise<{ transactions: Transaction[], oldestIndex: number }> {
   try {
-    // Get account history with transfer operations
+    // Get account history - using larger limit since we filter client-side
     const history = await HiveClient.database.getAccountHistory(
       username,
       start,

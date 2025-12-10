@@ -2,7 +2,7 @@ import { Box, Text, HStack, Button, Avatar, Link, VStack, Flex, Slider, SliderTr
 import { Comment } from '@hiveio/dhive';
 import { ExtendedComment } from '@/hooks/useComments';
 import { FaRegComment, FaRegHeart, FaShare, FaHeart, FaEdit, FaRetweet } from "react-icons/fa";
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
 import { useState, useMemo, memo } from 'react';
 import { getPostDate } from '@/lib/utils/GetPostDate';
 import { separateContent, extractHivePostUrls } from '@/lib/utils/snapUtils';
@@ -10,6 +10,7 @@ import MediaRenderer from '@/components/shared/MediaRenderer';
 import HivePostPreview from '@/components/shared/HivePostPreview';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
+import { vote, commentWithKeychain } from '@/lib/hive/client-functions';
 
 interface SnapProps {
     comment: ExtendedComment;
@@ -21,7 +22,7 @@ interface SnapProps {
 
 const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: SnapProps) => {
     const commentDate = getPostDate(comment.created);
-    const { aioha, user } = useAioha();
+    const { user } = useKeychain();
     const [voted, setVoted] = useState(comment.active_votes?.some(item => item.voter === user))
     const [voteCount, setVoteCount] = useState(comment.active_votes?.length || 0);
     const [sliderValue, setSliderValue] = useState(5);
@@ -93,9 +94,18 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
         
         // Send to blockchain
         try {
-            const vote = await aioha.vote(comment.author, comment.permlink, sliderValue * 100);
+            if (!user) {
+                throw new Error('Please log in to vote');
+            }
             
-            if (!vote.success) {
+            const voteResult = await vote({
+                username: user,
+                author: comment.author,
+                permlink: comment.permlink,
+                weight: sliderValue * 100
+            });
+            
+            if (!voteResult.success) {
                 // Rollback on failure
                 setVoted(wasVoted);
                 setVoteCount(previousCount);
@@ -140,16 +150,20 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
             const metadata = comment.json_metadata ? JSON.parse(comment.json_metadata) : {};
             
             // Edit is same as comment but with same permlink
-            const response = await aioha.comment(
-                comment.parent_author,
-                comment.parent_permlink,
-                comment.permlink,
-                comment.title || '',
-                editedBody,
-                metadata
-            );
+            const response = await commentWithKeychain({
+                data: {
+                    username: user,
+                    parent_author: comment.parent_author,
+                    parent_permlink: comment.parent_permlink,
+                    permlink: comment.permlink,
+                    title: comment.title || '',
+                    body: editedBody,
+                    json_metadata: JSON.stringify(metadata),
+                    comment_options: ''
+                }
+            });
             
-            if (response.success) {
+            if (response && response.success) {
                 toast({
                     title: 'Post Updated',
                     description: 'Your post has been updated successfully!',

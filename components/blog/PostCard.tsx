@@ -8,7 +8,8 @@ import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import { FaHeart, FaComment, FaRegHeart } from 'react-icons/fa';
 import { getPostDate } from '@/lib/utils/GetPostDate';
-import { useAioha } from '@aioha/react-ui';
+import { useKeychain } from '@/contexts/KeychainContext';
+import { vote } from '@/lib/hive/client-functions';
 import { useRouter } from 'next/navigation';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
 
@@ -23,7 +24,7 @@ export default function PostCard({ post }: PostCardProps) {
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [sliderValue, setSliderValue] = useState(100);
     const [showSlider, setShowSlider] = useState(false);
-    const { aioha, user } = useAioha();
+    const { user } = useKeychain();
     const [voted, setVoted] = useState(post.active_votes?.some(item => item.voter === user));
     const router = useRouter();
     const payoutDisplay = useCurrencyDisplay(post);
@@ -53,8 +54,14 @@ export default function PostCard({ post }: PostCardProps) {
     }
 
     async function handleVote() {
-        const vote = await aioha.vote(post.author, post.permlink, sliderValue * 100);
-        setVoted(vote.success);
+        if (!user) return;
+        const voteResult = await vote({
+            username: user,
+            author: post.author,
+            permlink: post.permlink,
+            weight: sliderValue * 100
+        });
+        setVoted(voteResult.success);
         handleHeartClick();
     }
 

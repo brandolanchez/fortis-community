@@ -1,24 +1,32 @@
 'use client'
-import { useAioha } from '@aioha/react-ui'
-import { KeyTypes } from '@aioha/aioha'
+import { useKeychain } from '@/contexts/KeychainContext'
+import { signAndBroadcastWithKeychain } from '@/lib/hive/client-functions'
 import { Flex, Input, Tag, TagCloseButton, TagLabel, Wrap, WrapItem, Button, useToast } from '@chakra-ui/react'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { generatePermlink, prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
-import type { Beneficiary } from '@/components/compose/BeneficiariesInput'
+import { prepareImageArray, validateTitle, validateContent } from '@/lib/utils/composeUtils'
+import { createComposer, type Beneficiary } from '@snapie/operations'
+import type { Beneficiary as BeneficiaryInputType } from '@/components/compose/BeneficiariesInput'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
+
+// Create a configured composer for blog posts
+const blogComposer = createComposer({
+  appName: 'Snapie.io',
+  defaultTags: [],
+  beneficiaries: [] // Will be set per-post
+})
 
 export default function Home() {
   const [markdown, setMarkdown] = useState("")
   const [title, setTitle] = useState("")
   const [hashtagInput, setHashtagInput] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
-  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([{ account: 'snapie', weight: 300 }]) // Default 3% to snapie
+  const [beneficiaries, setBeneficiaries] = useState<BeneficiaryInputType[]>([{ account: 'snapie', weight: 300 }]) // Default 3% to snapie
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { aioha, user } = useAioha()
+  const { user } = useKeychain()
   const toast = useToast()
   const router = useRouter()
   const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'blog'
@@ -75,11 +83,17 @@ export default function Home() {
       return
     }
 
-    // Extract username from user object (can be string or object)
+    // Log user object for debugging
+    console.log('🔍 User object from Aioha:', { user, typeOfUser: typeof user });
+
+    // The user from useAioha() should be a string (username)
+    // If it's not a string, try to extract username from object
     const username = typeof user === 'string' ? user : (user as any)?.username || (user as any)?.name || '';
     
+    console.log('🔍 Extracted username:', { username, trimmed: username.trim() });
+    
     if (!username || username.trim() === '') {
-      console.error('❌ Username is empty:', { user, username });
+      console.error('❌ Username is empty:', { user, username, typeOfUser: typeof user });
       toast({
         title: 'Authentication Error',
         description: 'Username not found. Please log out and log in again.',
@@ -95,65 +109,34 @@ export default function Home() {
     setIsSubmitting(true)
 
     try {
-      // Generate Hive-compatible permlink
-      const permlink = generatePermlink(title)
-      
       // Prepare image array for metadata (first image becomes thumbnail)
       const imageArray = prepareImageArray(markdown)
       
-      // Create comment operation (same as SnapComposer)
-      const commentOp = [
-        'comment',
-        {
-          parent_author: '',
-          parent_permlink: communityTag,
-          author: username,
-          permlink: permlink,
-          title: title,
-          body: markdown,
-          json_metadata: JSON.stringify({ 
-            tags: hashtags, 
-            app: 'Snapie.io',
-            image: imageArray
-          })
+      // Use SDK to build operations
+      const composerResult = blogComposer.build({
+        author: username,
+        body: markdown,
+        title: title,
+        parentAuthor: '',
+        parentPermlink: communityTag,
+        tags: hashtags,
+        beneficiaries: beneficiaries.map(b => ({ account: b.account, weight: b.weight })),
+        metadata: {
+          image: imageArray
         }
-      ] as const;
+      })
 
-      // Create comment_options operation with beneficiaries
-      const sortedBeneficiaries = beneficiaries
-        .sort((a, b) => a.account.localeCompare(b.account))
-        .map(b => ({ account: b.account, weight: b.weight }));
-
-      const optionsOp = [
-        'comment_options',
-        {
-          author: username,
-          permlink: permlink,
-          max_accepted_payout: '1000000.000 HBD',
-          percent_hbd: 10000,
-          allow_votes: true,
-          allow_curation_rewards: true,
-          extensions: [
-            [
-              0,
-              {
-                beneficiaries: sortedBeneficiaries
-              }
-            ]
-          ]
-        }
-      ] as const;
-
-      // Submit to Hive blockchain using Aioha (same as SnapComposer)
-      console.log('📤 Submitting to Hive via Aioha:', { 
-        commentOp, 
-        optionsOp,
-        username
+      // Submit to Hive blockchain using Keychain
+      console.log('📤 Submitting to Hive via Keychain:', { 
+        operations: composerResult.operations,
+        permlink: composerResult.permlink,
+        username,
+        operationAuthor: (composerResult.operations[0] as any)?.[1]?.author
       });
       
-      const result = await aioha.signAndBroadcastTx([commentOp, optionsOp], KeyTypes.Posting)
+      const result = await signAndBroadcastWithKeychain(username, composerResult.operations, 'posting')
       
-      console.log('✅ Post published successfully!', result);
+      console.log('📥 Keychain response:', result);
 
       // Check if submission was successful
       if (result.success) {
@@ -174,7 +157,7 @@ export default function Home() {
 
         // Redirect to post after delay (allow Hive node propagation)
         setTimeout(() => {
-          router.push(`/@${username}/${permlink}`)
+          router.push(`/@${username}/${composerResult.permlink}`)
         }, 3000)
       } else {
         throw new Error((result as any).errorMessage || (result as any).error || 'Failed to publish post')
