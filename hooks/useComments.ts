@@ -2,6 +2,7 @@
 import HiveClient from "@/lib/hive/hiveclient"
 import { useCallback, useEffect, useState } from "react"
 import { Comment } from "@hiveio/dhive"
+import { filterByReputation } from "@/lib/utils/reputation"
 
 interface ActiveVote {
     percent: number;
@@ -85,7 +86,9 @@ export function useComments(
         setIsLoading(true);
         try {
             const fetchedComments = await fetchComments(author, permlink, recursive);
-            setComments(fetchedComments);
+            // Filter out low reputation accounts
+            const filteredComments = await filterByReputation(fetchedComments);
+            setComments(filteredComments);
             setIsLoading(false);
         } catch (err: any) {
             setError(err.message ? err.message : "Error loading comments");

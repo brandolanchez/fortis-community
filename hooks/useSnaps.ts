@@ -2,6 +2,7 @@ import HiveClient from '@/lib/hive/hiveclient';
 import { useState, useEffect, useRef } from 'react';
 import { ExtendedComment } from './useComments';
 import { getFollowing } from '@/lib/hive/client-functions';
+import { filterByReputation } from '@/lib/utils/reputation';
 
 interface lastContainerInfo {
   permlink: string;
@@ -119,6 +120,9 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         } else if (filterType === 'following') {
           filteredComments = filterCommentsByFollowing(comments);
         }
+
+        // Filter out low reputation accounts (spammers/bots)
+        filteredComments = await filterByReputation(filteredComments);
 
         allFilteredComments.push(...filteredComments);
 
