@@ -5,6 +5,7 @@ import { Comment } from '@hiveio/dhive';
 import { CloseIcon } from '@chakra-ui/icons';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { getPostDate } from '@/lib/utils/GetPostDate';
+import NextLink from 'next/link';
 
 interface SnapReplyModalProps {
     isOpen: boolean;
@@ -40,7 +41,7 @@ export default function SnapReplyModal({ isOpen, onClose, comment, onNewReply }:
                         <Avatar size="sm" name={comment.author} src={`https://images.hive.blog/u/${comment.author}/avatar/sm`} />
                         <Box ml={3}>
                             <Text fontWeight="medium" fontSize="sm">
-                                <Link href={`/@${comment.author}`}>@{comment.author}</Link>
+                                <Link as={NextLink} href={`/@${comment.author}`}>@{comment.author}</Link>
                             </Text>
                             <Text fontWeight="medium" fontSize="sm" color="primary">
                                 {commentDate}

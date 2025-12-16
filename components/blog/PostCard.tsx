@@ -12,6 +12,7 @@ import { useKeychain } from '@/contexts/KeychainContext';
 import { vote } from '@/lib/hive/client-functions';
 import { useRouter } from 'next/navigation';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
+import NextLink from 'next/link';
 
 interface PostCardProps {
     post: Discussion;
@@ -95,7 +96,7 @@ export default function PostCard({ post }: PostCardProps) {
                     <Avatar size="sm" name={author} src={`https://images.hive.blog/u/${author}/avatar/sm`} />
                     <Box ml={3}>
                         <Text fontWeight="medium" fontSize="sm">
-                            <Link href={`/@${author}`}>@{author}</Link>
+                            <Link as={NextLink} href={`/@${author}`}>@{author}</Link>
                         </Text>
                         <Text fontSize="sm" color="primary">
                             {postDate}

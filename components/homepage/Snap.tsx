@@ -11,6 +11,7 @@ import HivePostPreview from '@/components/shared/HivePostPreview';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
 import { vote, commentWithKeychain } from '@/lib/hive/client-functions';
+import NextLink from 'next/link';
 
 interface SnapProps {
     comment: ExtendedComment;
@@ -209,7 +210,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                     />
                     <Box ml={3}>
                         <Text fontWeight="medium" fontSize="sm">
-                            <Link href={`/@${comment.author}`}>@{comment.author}</Link>
+                            <Link as={NextLink} href={`/@${comment.author}`}>@{comment.author}</Link>
                         </Text>
                         <Text fontWeight="medium" fontSize="sm" color="primary">
                             {commentDate}

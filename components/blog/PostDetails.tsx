@@ -7,6 +7,7 @@ import { useKeychain } from '@/contexts/KeychainContext';
 import { vote } from '@/lib/hive/client-functions';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
+import NextLink from 'next/link';
 
 interface PostDetailsProps {
     post: Discussion;
@@ -18,10 +19,17 @@ export default function PostDetails({ post }: PostDetailsProps) {
     const { user } = useKeychain();
     const [sliderValue, setSliderValue] = useState(100);
     const [showSlider, setShowSlider] = useState(false);
-    const [voted, setVoted] = useState(post.active_votes?.some(item => item.voter === user));
+    const [voted, setVoted] = useState(false);
     const [voteCount, setVoteCount] = useState(post.active_votes?.length || 0);
     const payoutDisplay = useCurrencyDisplay(post);
     const toast = useToast();
+
+    // Update voted state when user changes (e.g., after login/initial load)
+    useEffect(() => {
+        if (user && post.active_votes) {
+            setVoted(post.active_votes.some(item => item.voter === user));
+        }
+    }, [user, post.active_votes]);
 
     function handleHeartClick() {
         setShowSlider(!showSlider);
@@ -92,7 +100,7 @@ export default function PostDetails({ post }: PostDetailsProps) {
                     <Avatar size="sm" name={author} src={`https://images.hive.blog/u/${author}/avatar/sm`} />
                     <Box ml={3}>
                         <Text fontWeight="medium" fontSize="sm">
-                            <Link href={`/@${author}`}>@{author}</Link>
+                            <Link as={NextLink} href={`/@${author}`}>@{author}</Link>
                         </Text>
                         <Text fontSize="sm" color="secondary">
                             {postDate}
