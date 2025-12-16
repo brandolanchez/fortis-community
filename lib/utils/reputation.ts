@@ -53,37 +53,91 @@ export async function isLowReputation(username: string): Promise<boolean> {
 }
 
 /**
+ * Batch fetch reputations for multiple users in parallel
+ * Returns a Map of username -> reputation
+ */
+async function batchGetReputations(usernames: string[]): Promise<Map<string, number>> {
+  const uniqueUsernames = [...new Set(usernames)];
+  const results = new Map<string, number>();
+  
+  // Fetch all reputations in parallel
+  const promises = uniqueUsernames.map(async (username) => {
+    const rep = await getUserReputation(username);
+    return { username, rep };
+  });
+  
+  const resolved = await Promise.all(promises);
+  resolved.forEach(({ username, rep }) => {
+    results.set(username, rep);
+  });
+  
+  return results;
+}
+
+/**
+ * Collect all unique authors from content and nested replies
+ */
+function collectAllAuthors<T extends { author: string; replies?: T[] }>(
+  content: T[]
+): string[] {
+  const authors: string[] = [];
+  
+  function collect(items: T[]) {
+    for (const item of items) {
+      authors.push(item.author);
+      if (item.replies && item.replies.length > 0) {
+        collect(item.replies);
+      }
+    }
+  }
+  
+  collect(content);
+  return authors;
+}
+
+/**
  * Filter content by reputation and community muted list
  * Removes items from:
  * 1. Authors with negative reputation (spammers/bots)
  * 2. Community muted accounts
  * Also filters nested replies recursively if they exist
+ * 
+ * OPTIMIZED: Pre-fetches all reputations in parallel before filtering
  */
 export async function filterByReputation<T extends { author: string; replies?: T[] }>(
   content: T[]
 ): Promise<T[]> {
-  const filtered: T[] = [];
-
-  for (const item of content) {
-    // Check reputation (negative = spam)
-    const reputation = await getUserReputation(item.author);
-    const isSpammer = reputation < 0;
+  if (content.length === 0) return [];
+  
+  // Pre-fetch all reputations in parallel (huge performance win!)
+  const allAuthors = collectAllAuthors(content);
+  const [reputations, mutedList] = await Promise.all([
+    batchGetReputations(allAuthors),
+    communityMutedManager.getMutedList()
+  ]);
+  
+  // Now filter synchronously using pre-fetched data
+  function filterItems(items: T[]): T[] {
+    const filtered: T[] = [];
     
-    // Check community muted list
-    const isMuted = await communityMutedManager.isMuted(item.author);
-    
-    const shouldHide = isSpammer || isMuted;
-    
-    if (!shouldHide) {
-      // If item has nested replies, filter them recursively
-      if (item.replies && item.replies.length > 0) {
-        item.replies = await filterByReputation(item.replies);
+    for (const item of items) {
+      const reputation = reputations.get(item.author) ?? 25;
+      const isSpammer = reputation < 0;
+      const isMuted = mutedList.has(item.author);
+      
+      if (!isSpammer && !isMuted) {
+        // Filter nested replies using the same pre-fetched data
+        if (item.replies && item.replies.length > 0) {
+          item.replies = filterItems(item.replies);
+        }
+        filtered.push(item);
       }
-      filtered.push(item);
     }
+    
+    return filtered;
   }
-
-  return filtered;
+  
+  return filterItems(content);
 }
 
 /**
