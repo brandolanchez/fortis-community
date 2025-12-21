@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "packages:build": "pnpm --filter '@snapie/*' build",
+    "packages:publish": "pnpm packages:build && pnpm --filter '@snapie/*' publish --access public"
   },
   "dependencies": {
     "@chakra-ui/icons": "^2.1.1",

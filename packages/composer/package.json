@@ -35,6 +35,13 @@
   ],
   "author": "Mantequilla-Soft",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mantequilla-Soft/snapie-io"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
