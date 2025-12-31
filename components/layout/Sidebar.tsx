@@ -47,7 +47,7 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
     useEffect(() => {
         console.log('🔵 Sidebar: isChatOpen changed to:', isChatOpen);
     }, [isChatOpen]);
-    
+
     // Check if we should force compact mode (compose page)
     const forceCompact = pathname === '/compose';
     // Determine display values based on whether we're forcing compact or using responsive
@@ -55,7 +55,7 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
     const fullBreakpoint = forceCompact ? 'none' : { sm: 'none', md: 'flex' };
     const textDisplay = forceCompact ? 'none' : { sm: 'none', md: 'block' };
     const iconJustify = forceCompact ? 'center' : { sm: 'center', md: 'flex-start' };
-    
+
     // Detect if we're in compact mode for tooltip logic
     const isCompactMode = useBreakpointValue({ base: false, sm: true, md: false }) || forceCompact;
 
@@ -301,14 +301,16 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
                             </Tooltip>
                         </>
                     )}
-                    
+
                     {/* Login/Logout Button */}
                     <Tooltip label={isLoggedIn ? 'Logout' : 'Login'} placement="right" hasArrow isDisabled={!isCompactMode}>
                         <Box w="full" mt="auto">
                             <Button
                                 onClick={() => isLoggedIn ? logout() : setModalDisplayed(true)}
                                 variant="solid"
-                                colorScheme="teal"
+                                bg="primary"
+                                color="black"
+                                _hover={{ bg: "yellow.400", color: "black" }}
                                 w="full"
                                 justifyContent={iconJustify}
                                 leftIcon={<Icon as={isLoggedIn ? FiLogOut : FiLogIn} boxSize={4} />}
@@ -321,7 +323,7 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
                     </Tooltip>
                 </VStack>
             </Flex>
-            
+
             {/* Login Modal */}
             <Modal isOpen={modalDisplayed} onClose={() => setModalDisplayed(false)}>
                 <ModalOverlay />

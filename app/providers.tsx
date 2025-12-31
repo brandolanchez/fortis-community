@@ -13,6 +13,7 @@ import { windows95Theme } from '@/themes/windows95'
 import { hiveBRTheme } from '@/themes/hivebr'
 import { cannabisTheme } from '@/themes/cannabis'
 import { mengaoTheme } from '@/themes/mengao'
+import { fortisWorkoutTheme } from '@/themes/fortis-workout'
 import { KeychainProvider } from '@/contexts/KeychainContext'
 import { UserProvider } from '@/contexts/UserContext'
 
@@ -26,11 +27,12 @@ const themeMap = {
   hivebr: hiveBRTheme,
   cannabis: cannabisTheme,
   mengao: mengaoTheme,
+  'fortis-workout': fortisWorkoutTheme,
 }
 
 type ThemeName = keyof typeof themeMap;
 
-const themeName = (process.env.NEXT_PUBLIC_THEME as ThemeName) || 'hacker';
+const themeName = (process.env.NEXT_PUBLIC_THEME as ThemeName) || 'fortis-workout';
 const selectedTheme = themeMap[themeName];
 
 // Persistent across renders + strict mode remounts

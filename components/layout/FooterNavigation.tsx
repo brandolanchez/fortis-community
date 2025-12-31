@@ -21,7 +21,7 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
     const scrollRef = useRef<HTMLDivElement>(null);
     const [showLeftFade, setShowLeftFade] = useState(false);
     const [showRightFade, setShowRightFade] = useState(false);
-    
+
     const handleNavigation = (path: string) => {
         if (router) {
             router.push(path);
@@ -74,7 +74,7 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                     <Icon as={FiChevronLeft} color="whiteAlpha.600" boxSize={4} />
                 </Box>
             )}
-            
+
             {/* Right fade indicator */}
             {showRightFade && (
                 <Box
@@ -106,129 +106,129 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                     msOverflowStyle: 'none',
                 }}
             >
-            <HStack spacing={1} minW="max-content" justify="center" px={2}>
-                <Tooltip label="Home" aria-label="Home tooltip">
-                    <Button
-                        onClick={() => handleNavigation("/")}
-                        variant="ghost"
-                        color="white"
-                        size="sm"
-                        minW="40px"
-                        _hover={{ bg: 'whiteAlpha.200' }}
-                        leftIcon={<Icon as={FiHome} boxSize={4} />}
-                    />
-                </Tooltip>
-
-                <Tooltip label="Blog" aria-label="Blog tooltip">
-                    <Button
-                        onClick={() => handleNavigation("/blog")}
-                        variant="ghost"
-                        color="white"
-                        size="sm"
-                        minW="40px"
-                        _hover={{ bg: 'whiteAlpha.200' }}
-                        leftIcon={<Icon as={FiBook} boxSize={4} />}
-                    />
-                </Tooltip>
-
-                {user ? (
-                    <>
-                        <Tooltip label="Notifications" aria-label="Notifications tooltip">
-                            <Button
-                                onClick={() => handleNavigation("/@" + user + "/notifications")}
-                                variant="ghost"
-                                color="white"
-                                size="sm"
-                                minW="40px"
-                                _hover={{ bg: 'whiteAlpha.200' }}
-                                leftIcon={<Icon as={FiBell} boxSize={4} />}
-                            />
-                        </Tooltip>
-
-                        <Tooltip label="Wallet" aria-label="Wallet tooltip">
-                            <Button
-                                onClick={() => handleNavigation("/@" + user + '/wallet')}
-                                variant="ghost"
-                                color="white"
-                                size="sm"
-                                minW="40px"
-                                _hover={{ bg: 'whiteAlpha.200' }}
-                                leftIcon={<Icon as={FiCreditCard} boxSize={4} />}
-                            />
-                        </Tooltip>
-
-                        <Tooltip label="Chat" aria-label="Chat tooltip">
-                            <Box position="relative">
-                                <Button
-                                    onClick={() => setIsChatOpen(!isChatOpen)}
-                                    variant="ghost"
-                                    color="white"
-                                    size="sm"
-                                    minW="40px"
-                                    bg={isChatOpen ? 'blue.500' : 'transparent'}
-                                    _hover={{ bg: isChatOpen ? 'blue.600' : 'whiteAlpha.200' }}
-                                    leftIcon={<Icon as={FiMessageSquare} boxSize={4} />}
-                                />
-                                {chatUnreadCount > 0 && !isChatOpen && (
-                                    <Badge
-                                        position="absolute"
-                                        top="-2px"
-                                        right="-2px"
-                                        colorScheme="red"
-                                        borderRadius="full"
-                                        minW="18px"
-                                        h="18px"
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                        fontSize="xs"
-                                    >
-                                        {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                                    </Badge>
-                                )}
-                            </Box>
-                        </Tooltip>
-
-                        <Tooltip label="Profile" aria-label="Profile tooltip">
-                            <Button
-                                onClick={() => handleNavigation("/@" + user)}
-                                variant="ghost"
-                                color="white"
-                                size="sm"
-                                minW="40px"
-                                _hover={{ bg: 'whiteAlpha.200' }}
-                                leftIcon={<Icon as={FiUser} boxSize={4} />}
-                            />
-                        </Tooltip>
-                        
-                        <Tooltip label="Logout" aria-label="Logout tooltip">
-                            <Button
-                                onClick={logout}
-                                variant="ghost"
-                                color="white"
-                                size="sm"
-                                minW="40px"
-                                _hover={{ bg: 'whiteAlpha.200' }}
-                                leftIcon={<Icon as={FiLogOut} boxSize={4} />}
-                            />
-                        </Tooltip>
-                    </>
-                ) : (
-                    <Tooltip label="Login" aria-label="Login tooltip">
+                <HStack spacing={1} minW="max-content" justify="center" px={2}>
+                    <Tooltip label="Home" aria-label="Home tooltip">
                         <Button
-                            onClick={() => setModalDisplayed(true)}
+                            onClick={() => handleNavigation("/")}
                             variant="ghost"
                             color="white"
                             size="sm"
                             minW="40px"
                             _hover={{ bg: 'whiteAlpha.200' }}
-                            leftIcon={<Icon as={FiLogIn} boxSize={4} />}
+                            leftIcon={<Icon as={FiHome} boxSize={4} />}
                         />
                     </Tooltip>
-                )}
-            </HStack>
+
+                    <Tooltip label="Blog" aria-label="Blog tooltip">
+                        <Button
+                            onClick={() => handleNavigation("/blog")}
+                            variant="ghost"
+                            color="white"
+                            size="sm"
+                            minW="40px"
+                            _hover={{ bg: 'whiteAlpha.200' }}
+                            leftIcon={<Icon as={FiBook} boxSize={4} />}
+                        />
+                    </Tooltip>
+
+                    {user ? (
+                        <>
+                            <Tooltip label="Notifications" aria-label="Notifications tooltip">
+                                <Button
+                                    onClick={() => handleNavigation("/@" + user + "/notifications")}
+                                    variant="ghost"
+                                    color="white"
+                                    size="sm"
+                                    minW="40px"
+                                    _hover={{ bg: 'whiteAlpha.200' }}
+                                    leftIcon={<Icon as={FiBell} boxSize={4} />}
+                                />
+                            </Tooltip>
+
+                            <Tooltip label="Wallet" aria-label="Wallet tooltip">
+                                <Button
+                                    onClick={() => handleNavigation("/@" + user + '/wallet')}
+                                    variant="ghost"
+                                    color="white"
+                                    size="sm"
+                                    minW="40px"
+                                    _hover={{ bg: 'whiteAlpha.200' }}
+                                    leftIcon={<Icon as={FiCreditCard} boxSize={4} />}
+                                />
+                            </Tooltip>
+
+                            <Tooltip label="Chat" aria-label="Chat tooltip">
+                                <Box position="relative">
+                                    <Button
+                                        onClick={() => setIsChatOpen(!isChatOpen)}
+                                        variant="ghost"
+                                        color="white"
+                                        size="sm"
+                                        minW="40px"
+                                        bg={isChatOpen ? 'blue.500' : 'transparent'}
+                                        _hover={{ bg: isChatOpen ? 'blue.600' : 'whiteAlpha.200' }}
+                                        leftIcon={<Icon as={FiMessageSquare} boxSize={4} />}
+                                    />
+                                    {chatUnreadCount > 0 && !isChatOpen && (
+                                        <Badge
+                                            position="absolute"
+                                            top="-2px"
+                                            right="-2px"
+                                            colorScheme="red"
+                                            borderRadius="full"
+                                            minW="18px"
+                                            h="18px"
+                                            display="flex"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                            fontSize="xs"
+                                        >
+                                            {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                                        </Badge>
+                                    )}
+                                </Box>
+                            </Tooltip>
+
+                            <Tooltip label="Profile" aria-label="Profile tooltip">
+                                <Button
+                                    onClick={() => handleNavigation("/@" + user)}
+                                    variant="ghost"
+                                    color="white"
+                                    size="sm"
+                                    minW="40px"
+                                    _hover={{ bg: 'whiteAlpha.200' }}
+                                    leftIcon={<Icon as={FiUser} boxSize={4} />}
+                                />
+                            </Tooltip>
+
+                            <Tooltip label="Logout" aria-label="Logout tooltip">
+                                <Button
+                                    onClick={logout}
+                                    variant="ghost"
+                                    color="white"
+                                    size="sm"
+                                    minW="40px"
+                                    _hover={{ bg: 'whiteAlpha.200' }}
+                                    leftIcon={<Icon as={FiLogOut} boxSize={4} />}
+                                />
+                            </Tooltip>
+                        </>
+                    ) : (
+                        <Tooltip label="Login" aria-label="Login tooltip">
+                            <Button
+                                onClick={() => setModalDisplayed(true)}
+                                variant="ghost"
+                                color="primary"
+                                size="sm"
+                                minW="40px"
+                                _hover={{ bg: 'whiteAlpha.200', color: 'primary' }}
+                                leftIcon={<Icon as={FiLogIn} boxSize={4} />}
+                            />
+                        </Tooltip>
+                    )}
+                </HStack>
             </Box>
-            
+
             {/* Login Modal */}
             <Modal isOpen={modalDisplayed} onClose={() => setModalDisplayed(false)}>
                 <ModalOverlay />
