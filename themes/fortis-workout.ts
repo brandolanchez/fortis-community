@@ -20,6 +20,14 @@ export const fortisWorkoutTheme = extendTheme({
         body: '"Lato", sans-serif',
         mono: 'monospace',
     },
+    styles: {
+        global: (props: { colorMode: string; }) => ({
+            body: {
+                bg: '#000000',
+                color: '#FFFFFF',
+            },
+        }),
+    },
     components: {
         Button: {
             baseStyle: {
@@ -67,20 +75,40 @@ export const fortisWorkoutTheme = extendTheme({
             },
         },
         Card: {
-             baseStyle: {
+            baseStyle: {
                 container: {
                     bg: 'muted',
                     borderColor: 'gray.800',
                 }
-             }
-        }
-    },
-    styles: {
-        global: (props: { colorMode: string; }) => ({
-            body: {
-                bg: '#000000',
-                color: '#FFFFFF',
+            }
+        },
+        Input: {
+            baseStyle: {
+                field: {
+                    color: 'black',
+                    _placeholder: {
+                        color: 'gray.500',
+                    },
+                    bg: 'white',
+                    borderColor: 'gray.600',
+                },
             },
-        }),
+            defaultProps: {
+                variant: 'filled',
+            },
+        },
+        Textarea: {
+            baseStyle: {
+                color: 'black',
+                _placeholder: {
+                    color: 'gray.500',
+                },
+                bg: 'white',
+                borderColor: 'gray.600',
+            },
+            defaultProps: {
+                variant: 'filled',
+            },
+        },
     },
 });
