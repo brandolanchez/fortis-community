@@ -61,7 +61,7 @@ export default function Header() {
                         />
                     )}
                     <Flex direction="column">
-                        <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold">
+                        <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" fontFamily="heading">
                             {communityInfo?.title}
                         </Text>
                         {/* Display description with limited width */}

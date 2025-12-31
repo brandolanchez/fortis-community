@@ -141,7 +141,7 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
                                         mr={2}
                                     />
                                 )}
-                                <Text fontSize="lg" fontWeight="bold">{communityInfo?.title}</Text>
+                                <Text fontSize="lg" fontWeight="bold" fontFamily="heading">{communityInfo?.title}</Text>
                             </Flex>
                             {/* Icon only for compact view */}
                             <Box display={compactBreakpoint} mb={4} w="40px" h="40px">

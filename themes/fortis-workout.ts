@@ -110,5 +110,16 @@ export const fortisWorkoutTheme = extendTheme({
                 variant: 'filled',
             },
         },
+        Modal: {
+            baseStyle: {
+                dialog: {
+                    bg: 'muted',
+                    color: 'text',
+                },
+                header: {
+                    color: 'primary',
+                },
+            },
+        },
     },
 });
