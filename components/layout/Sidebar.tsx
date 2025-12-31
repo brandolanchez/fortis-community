@@ -336,6 +336,8 @@ export default function Sidebar({ isChatOpen, setIsChatOpen, chatUnreadCount = 0
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             mb={4}
+                            color="black"
+                            _placeholder={{ color: 'gray.500' }}
                         />
                         <Button
                             colorScheme="blue"
