@@ -29,7 +29,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   const [fetchTrigger, setFetchTrigger] = useState(0);
 
   const pageMinSize = 10;
-  
+
   // Load following list once when needed
   useEffect(() => {
     const loadFollowingList = async () => {
@@ -74,7 +74,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
 
   // Filter comments by following
   function filterCommentsByFollowing(comments: ExtendedComment[]): ExtendedComment[] {
-    return comments.filter((commentItem) => 
+    return comments.filter((commentItem) =>
       followingListRef.current.includes(commentItem.author)
     );
   }
@@ -83,14 +83,19 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const tag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || ''
     const author = "peak.snaps";
-    const limit = 3;
+    const limit = 20; // Increased from 3 to 20 for better performance
     const allFilteredComments: ExtendedComment[] = [];
 
     let hasMoreData = true; // To track if there are more containers to fetch
     let permlink = lastContainerRef.current?.permlink || "";
     let date = lastContainerRef.current?.date || new Date().toISOString();
 
-    while (allFilteredComments.length < pageMinSize && hasMoreData) {
+    // Safety counter to prevent infinite loops if no posts are found matching criteria
+    let loopCount = 0;
+    const maxLoops = 5;
+
+    while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
+      loopCount++;
 
       const result = await HiveClient.database.call('get_discussions_by_author_before_date', [
         author,
@@ -104,14 +109,22 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         break;
       }
 
-      for (const resultItem of result) {
-        const comments = (await HiveClient.database.call("get_content_replies", [
+      // Fetch replies in parallel
+      const repliesPromises = result.map((resultItem: any) =>
+        HiveClient.database.call("get_content_replies", [
           author,
           resultItem.permlink,
-        ])) as ExtendedComment[];
+        ])
+      );
+
+      const repliesResults = await Promise.all(repliesPromises);
+
+      for (let i = 0; i < result.length; i++) {
+        const resultItem = result[i];
+        const comments = repliesResults[i] as ExtendedComment[];
 
         let filteredComments: ExtendedComment[] = [];
-        
+
         // Apply appropriate filter based on filterType
         if (filterType === 'community') {
           filteredComments = filterCommentsByTag(comments, tag);
