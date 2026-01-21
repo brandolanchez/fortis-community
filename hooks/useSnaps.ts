@@ -108,7 +108,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   // Fetch comments with a minimum size - OPTIMIZED
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const author = "peak.snaps";
-    const limit = 25; // Fetch more per batch
+    const limit = 50; // Increased search depth
     const allFilteredComments: ExtendedComment[] = [];
 
     let hasMoreData = true;
@@ -116,7 +116,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     let date = lastContainerRef.current?.date || new Date().toISOString();
 
     let loopCount = 0;
-    const maxLoops = 3; // Reduced loops but better batching
+    const maxLoops = 5; // Search deeper to ensure finding community posts
 
     while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
       loopCount++;
@@ -135,7 +135,18 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
 
       // BATCH FETCH ALL REPLIES IN ONE REQUEST
       const batchParams = containers.map((c: any) => [author, c.permlink]);
-      const batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
+      let batchReplies: any[] = [];
+      try {
+        batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
+      } catch (error) {
+        console.warn('Batch fetch failed, falling back to sequential:', error);
+        // Fallback to sequential dhive calls if batch fails
+        batchReplies = await Promise.all(
+          containers.map((c: any) =>
+            HiveClient.database.call('get_content_replies', [author, c.permlink])
+          )
+        );
+      }
 
       for (let i = 0; i < containers.length; i++) {
         const container = containers[i];
