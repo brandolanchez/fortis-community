@@ -105,22 +105,18 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     );
   }
 
-  // Fetch comments with a minimum size - OPTIMIZED
+  // Fetch comments - SIMPLIFIED TO PREVENT HANGS
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const author = "peak.snaps";
-    const limit = 50; // Increased search depth
+    const limit = 50; // Search deeper in one go
     const allFilteredComments: ExtendedComment[] = [];
 
-    let hasMoreData = true;
     let permlink = lastContainerRef.current?.permlink || "";
     let date = lastContainerRef.current?.date || new Date().toISOString();
 
-    let loopCount = 0;
-    const maxLoops = 5; // Search deeper to ensure finding community posts
+    console.log(`fetching containers from ${date}...`);
 
-    while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
-      loopCount++;
-
+    try {
       const containers = await HiveClient.database.call('get_discussions_by_author_before_date', [
         author,
         permlink,
@@ -128,29 +124,36 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         limit,
       ]);
 
-      if (!containers.length) {
-        hasMoreData = false;
-        break;
+      if (!containers || containers.length === 0) {
+        setHasMore(false);
+        return [];
       }
 
-      // BATCH FETCH ALL REPLIES IN ONE REQUEST
+      // Track last container for next page
+      const lastContainer = containers[containers.length - 1];
+      lastContainerRef.current = {
+        permlink: lastContainer.permlink,
+        date: lastContainer.created
+      };
+
+      // BATCH FETCH ALL REPLIES
       const batchParams = containers.map((c: any) => [author, c.permlink]);
       let batchReplies: any[] = [];
+
       try {
         batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
       } catch (error) {
-        console.warn('Batch fetch failed, falling back to sequential:', error);
-        // Fallback to sequential dhive calls if batch fails
+        console.warn('Batch fetch failed, using sequential fallback');
         batchReplies = await Promise.all(
-          containers.map((c: any) =>
-            HiveClient.database.call('get_content_replies', [author, c.permlink])
+          containers.slice(0, 10).map((c: any) => // Only fallback for first 10 to save time
+            HiveClient.database.call('get_content_replies', [author, c.permlink]).catch(() => [])
           )
         );
       }
 
       for (let i = 0; i < containers.length; i++) {
-        const container = containers[i];
         const replies = (batchReplies[i] || []) as ExtendedComment[];
+        if (replies.length === 0) continue;
 
         let filteredComments: ExtendedComment[] = [];
 
@@ -162,19 +165,23 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
           filteredComments = filterCommentsByFollowing(replies);
         }
 
-        // Only filter reputation if we have content
         if (filteredComments.length > 0) {
+          // Reputation filtering can be slow, we'll do it but it's now timed out in the utility
           filteredComments = await filterByReputation(filteredComments);
           allFilteredComments.push(...filteredComments);
         }
-
-        fetchedPermlinksRef.current.add(container.permlink);
-        permlink = container.permlink;
-        date = container.created;
       }
+
+      // If we found nothing but there are more containers, we don't loop here to avoid hang.
+      // The user can click "Load More" or we'll just show what we found.
+      if (allFilteredComments.length === 0 && containers.length === limit) {
+        console.log("No community snaps found in this batch of containers.");
+      }
+
+    } catch (error) {
+      console.error("Error in getMoreSnaps:", error);
     }
 
-    lastContainerRef.current = { permlink, date };
     return allFilteredComments;
   }
 

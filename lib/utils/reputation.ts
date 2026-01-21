@@ -23,14 +23,20 @@ export async function getUserReputation(username: string): Promise<number> {
       return cached.rep;
     }
 
-    const response = await fetch(`${REPUTATION_API}/${username}/reputation`);
-    
+    // Add a 2s timeout to the fetch to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const response = await fetch(`${REPUTATION_API}/${username}/reputation`, {
+      signal: controller.signal
+    }).finally(() => clearTimeout(timeoutId));
+
     if (!response.ok) {
       return 25; // Default to neutral reputation on error
     }
 
     const reputation = await response.json();
-    
+
     // Cache the result
     repCache.set(username, {
       rep: reputation,
@@ -39,6 +45,7 @@ export async function getUserReputation(username: string): Promise<number> {
 
     return reputation;
   } catch (error) {
+    console.warn(`Reputation check failed for ${username}`, error);
     return 25; // Default to neutral on error (fail-open)
   }
 }
@@ -59,18 +66,18 @@ export async function isLowReputation(username: string): Promise<boolean> {
 async function batchGetReputations(usernames: string[]): Promise<Map<string, number>> {
   const uniqueUsernames = [...new Set(usernames)];
   const results = new Map<string, number>();
-  
+
   // Fetch all reputations in parallel
   const promises = uniqueUsernames.map(async (username) => {
     const rep = await getUserReputation(username);
     return { username, rep };
   });
-  
+
   const resolved = await Promise.all(promises);
   resolved.forEach(({ username, rep }) => {
     results.set(username, rep);
   });
-  
+
   return results;
 }
 
@@ -81,7 +88,7 @@ function collectAllAuthors<T extends { author: string; replies?: T[] }>(
   content: T[]
 ): string[] {
   const authors: string[] = [];
-  
+
   function collect(items: T[]) {
     for (const item of items) {
       authors.push(item.author);
@@ -90,7 +97,7 @@ function collectAllAuthors<T extends { author: string; replies?: T[] }>(
       }
     }
   }
-  
+
   collect(content);
   return authors;
 }
@@ -108,23 +115,23 @@ export async function filterByReputation<T extends { author: string; replies?: T
   content: T[]
 ): Promise<T[]> {
   if (content.length === 0) return [];
-  
+
   // Pre-fetch all reputations in parallel (huge performance win!)
   const allAuthors = collectAllAuthors(content);
   const [reputations, mutedList] = await Promise.all([
     batchGetReputations(allAuthors),
     communityMutedManager.getMutedList()
   ]);
-  
+
   // Now filter synchronously using pre-fetched data
   function filterItems(items: T[]): T[] {
     const filtered: T[] = [];
-    
+
     for (const item of items) {
       const reputation = reputations.get(item.author) ?? 25;
       const isSpammer = reputation < 0;
       const isMuted = mutedList.has(item.author);
-      
+
       if (!isSpammer && !isMuted) {
         // Filter nested replies using the same pre-fetched data
         if (item.replies && item.replies.length > 0) {
@@ -133,10 +140,10 @@ export async function filterByReputation<T extends { author: string; replies?: T
         filtered.push(item);
       }
     }
-    
+
     return filtered;
   }
-  
+
   return filterItems(content);
 }
 
