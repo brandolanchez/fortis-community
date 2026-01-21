@@ -105,32 +105,29 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     );
   }
 
-  // Fetch comments - SIMPLIFIED TO PREVENT HANGS
-  // Fetch comments - AGGRESSIVE SEARCH TO FIND COMMUNITY SNAPS
+  // Fetch comments - HIGH-SPEED CHUNKED SEARCH
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const author = "peak.snaps";
-    const limit = 100; // Hive max limit
+    const chunkLimit = 100; // Containers per Hive API call
+    const subBatchSize = 25; // Sub-batches for replies help avoid timeouts
     const allFilteredComments: ExtendedComment[] = [];
 
-    let hasMoreData = true;
     let permlink = lastContainerRef.current?.permlink || "";
     let date = lastContainerRef.current?.date || new Date().toISOString();
+    let hasMoreData = true;
 
-    let loopCount = 0;
-    const maxLoops = 10; // Balanced for speed vs discovery
-
-    console.log(`[useSnaps] Searching ${filterType} snaps starting from ${date}...`);
+    console.log(`[useSnaps] Search starting from ${date}...`);
 
     try {
-      while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
-        loopCount++;
+      // Search up to 15 chunks of 100 containers (total 1500)
+      for (let chunk = 0; chunk < 15 && allFilteredComments.length < pageMinSize && hasMoreData; chunk++) {
 
         const containers = await HiveClient.database.call('get_discussions_by_author_before_date', [
           author,
           permlink,
           date,
-          limit,
-        ]).catch(err => {
+          chunkLimit,
+        ]).catch((err) => {
           console.error("[useSnaps] Dhive call failed:", err);
           return [];
         });
@@ -140,52 +137,48 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
           break;
         }
 
-        // BATCH FETCH ALL REPLIES
-        const batchParams = containers.map((c: any) => [author, c.permlink]);
-        let batchReplies: any[] = [];
+        // Update pointers for the next potential chunk
+        const lastC = containers[containers.length - 1];
+        permlink = lastC.permlink;
+        date = lastC.created;
 
-        try {
-          batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
-        } catch (error) {
-          console.warn('[useSnaps] Batch fetch failed, using sequential fallback');
-          batchReplies = await Promise.all(
-            containers.slice(0, 5).map((c: any) =>
-              HiveClient.database.call('get_content_replies', [author, c.permlink]).catch(() => [])
-            )
-          ).catch(() => []);
+        // Process replies in smaller sub-batches to be more resilient
+        for (let i = 0; i < containers.length; i += subBatchSize) {
+          const subBatch = containers.slice(i, i + subBatchSize);
+          const batchParams = subBatch.map((c: any) => [author, c.permlink]);
+
+          try {
+            const batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
+
+            for (let j = 0; j < subBatch.length; j++) {
+              const replies = (batchReplies[j] || []) as ExtendedComment[];
+              if (replies.length === 0) continue;
+
+              let filteredComments: ExtendedComment[] = [];
+              if (filterType === 'community' && communityTag) {
+                filteredComments = filterCommentsByTag(replies, communityTag);
+              } else if (filterType === 'all') {
+                filteredComments = replies;
+              } else if (filterType === 'following') {
+                filteredComments = filterCommentsByFollowing(replies);
+              }
+
+              if (filteredComments.length > 0) {
+                filteredComments = await filterByReputation(filteredComments);
+                allFilteredComments.push(...filteredComments);
+              }
+            }
+          } catch (error) {
+            console.warn('[useSnaps] Sub-batch failed, continuing...', error);
+          }
         }
 
-        for (let i = 0; i < containers.length; i++) {
-          const container = containers[i];
-          const replies = (batchReplies[i] || []) as ExtendedComment[];
-
-          let filteredComments: ExtendedComment[] = [];
-
-          if (filterType === 'community' && communityTag) {
-            filteredComments = filterCommentsByTag(replies, communityTag);
-          } else if (filterType === 'all') {
-            filteredComments = replies;
-          } else if (filterType === 'following') {
-            filteredComments = filterCommentsByFollowing(replies);
-          }
-
-          if (filteredComments.length > 0) {
-            filteredComments = await filterByReputation(filteredComments);
-            allFilteredComments.push(...filteredComments);
-          }
-
-          // Update pointers for next loop
-          permlink = container.permlink;
-          date = container.created;
-        }
-
-        if (containers.length < limit) {
+        if (containers.length < chunkLimit) {
           hasMoreData = false;
-          break;
         }
       }
 
-      console.log(`[useSnaps] Search finished. Found ${allFilteredComments.length} snaps after ${loopCount} loops.`);
+      console.log(`[useSnaps] Search finished. Found ${allFilteredComments.length} snaps.`);
       lastContainerRef.current = { permlink, date };
 
     } catch (error) {
