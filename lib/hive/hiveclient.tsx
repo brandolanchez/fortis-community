@@ -1,12 +1,12 @@
 import { Client } from "@hiveio/dhive"
 
 const HiveClient = new Client([
-  "https://api.deathwing.me",
-  "https://techcoderx.com",
   "https://api.hive.blog",
-  "https://anyx.io",
-  "https://hive-api.arcange.eu",
+  "https://api.deathwing.me",
+  "https://api.openhive.network",
   "https://hive-api.3speak.tv",
+  "https://hiveapi.actifit.io",
+  "https://api.syncad.com",
 ])
 
 export default HiveClient
