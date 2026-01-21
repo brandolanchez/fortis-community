@@ -77,6 +77,11 @@ export default function SnapList(
     >
       <VStack spacing={1} align="stretch" mx="auto" pt={0} px={2}>
         {!post && <SnapComposer pa={author} pp={permlink} onNewComment={handleNewComment} onClose={() => null} />}
+        {comments.length === 0 && !isLoading && !hasMore && (
+          <Box textAlign="center" py={10}>
+            <Text fontSize="lg" color="gray.500">No snaps found in this community yet.</Text>
+          </Box>
+        )}
         {comments.map((comment: ExtendedComment) => (
           <Snap
             key={comment.permlink}
