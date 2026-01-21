@@ -35,7 +35,7 @@ export default function SnapList(
     newComment,
     post,
     data
-}: SnapListProps) {  
+  }: SnapListProps) {
   const { comments, loadNextPage, isLoading, hasMore, refresh } = data
 
   const handleNewComment = () => {
@@ -54,40 +54,40 @@ export default function SnapList(
   //const updatedComments = newComment ? [newComment, ...comments] : comments;
 
   if (isLoading && comments.length === 0) {
-    // Initial loading state
+    // Initial loading state - show big spinner only if empty
     return (
-      <Box textAlign="center" mt={4}>
-        <Spinner size="xl" />
-        <Text>Loading posts...</Text>
+      <Box textAlign="center" mt={20}>
+        <Spinner size="xl" color="primary" thickness="4px" />
+        <Text mt={4} fontWeight="bold" color="primary">LOADING SNAPS...</Text>
       </Box>
     );
   }
 
   return (
-        <InfiniteScroll
-            dataLength={comments.length}
-            next={loadNextPage}
-            hasMore={hasMore}
-            loader={
-                (<Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                    <Spinner size="xl" color="primary" />
-                </Box>
-                )}
-            scrollableTarget="scrollableDiv"
-        >
-          <VStack spacing={1} align="stretch" mx="auto" pt={0} px={2}>
-          {!post && <SnapComposer pa={author} pp={permlink} onNewComment={handleNewComment} onClose={() => null} />}
-          {comments.map((comment: ExtendedComment) => (
-            <Snap
-              key={comment.permlink}
-              comment={comment}
-              onOpen={onOpen}
-              setReply={setReply}
-              {...(!post ? { setConversation } : {})}
-            />
-          ))}
-          </VStack>
-      </InfiniteScroll>
+    <InfiniteScroll
+      dataLength={comments.length}
+      next={loadNextPage}
+      hasMore={hasMore}
+      loader={
+        (<Box display="flex" justifyContent="center" alignItems="center" py={5}>
+          <Spinner size="xl" color="primary" />
+        </Box>
+        )}
+      scrollableTarget="scrollableDiv"
+    >
+      <VStack spacing={1} align="stretch" mx="auto" pt={0} px={2}>
+        {!post && <SnapComposer pa={author} pp={permlink} onNewComment={handleNewComment} onClose={() => null} />}
+        {comments.map((comment: ExtendedComment) => (
+          <Snap
+            key={comment.permlink}
+            comment={comment}
+            onOpen={onOpen}
+            setReply={setReply}
+            {...(!post ? { setConversation } : {})}
+          />
+        ))}
+      </VStack>
+    </InfiniteScroll>
 
   );
 }

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ExtendedComment } from './useComments';
 import { getFollowing } from '@/lib/hive/client-functions';
 import { filterByReputation } from '@/lib/utils/reputation';
+import { hiveBatchFetch } from '@/lib/hive/hive-batcher';
 
 interface lastContainerInfo {
   permlink: string;
@@ -16,19 +17,47 @@ interface UseSnapsProps {
   username?: string; // Required when filterType is 'following'
 }
 
-export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps = {}) => {
-  const lastContainerRef = useRef<lastContainerInfo | null>(null); // Use useRef for last container
-  const fetchedPermlinksRef = useRef<Set<string>>(new Set()); // Track fetched permlinks
-  const followingListRef = useRef<string[]>([]); // Cache following list
+const CACHE_KEY_PREFIX = 'snaps_cache_';
 
-  const [currentPage, setCurrentPage] = useState(1);
+export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps = {}) => {
+  const lastContainerRef = useRef<lastContainerInfo | null>(null);
+  const fetchedPermlinksRef = useRef<Set<string>>(new Set());
+  const followingListRef = useRef<string[]>([]);
+
   const [comments, setComments] = useState<ExtendedComment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [followingListLoaded, setFollowingListLoaded] = useState(false);
   const [fetchTrigger, setFetchTrigger] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const pageMinSize = 10;
+  const communityTag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '';
+
+  // Load from cache on mount or filter change
+  useEffect(() => {
+    const cacheKey = `${CACHE_KEY_PREFIX}${filterType}_${username || 'guest'}`;
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setComments(parsed);
+          // Don't set isLoading to true if we have cached data to show
+        }
+      } catch (e) {
+        console.error('Error parsing snaps cache', e);
+      }
+    }
+  }, [filterType, username]);
+
+  // Save to cache when comments update
+  useEffect(() => {
+    if (comments.length > 0 && currentPage === 1) {
+      const cacheKey = `${CACHE_KEY_PREFIX}${filterType}_${username || 'guest'}`;
+      sessionStorage.setItem(cacheKey, JSON.stringify(comments.slice(0, 20)));
+    }
+  }, [comments, filterType, username, currentPage]);
 
   // Load following list once when needed
   useEffect(() => {
@@ -40,15 +69,15 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
             const following = await getFollowing(username, '', 1000);
             followingListRef.current = following;
             setFollowingListLoaded(true);
-            setFetchTrigger(prev => prev + 1); // Trigger fetch once list is loaded
+            setFetchTrigger(prev => prev + 1);
           } catch (error) {
             console.error('Error loading following list:', error);
-            setFollowingListLoaded(true); // Set to true even on error to prevent infinite loading
-            setFetchTrigger(prev => prev + 1); // Trigger fetch anyway
+            setFollowingListLoaded(true);
+            setFetchTrigger(prev => prev + 1);
           }
         } else {
           setFollowingListLoaded(true);
-          setFetchTrigger(prev => prev + 1); // Trigger fetch since list already loaded
+          setFetchTrigger(prev => prev + 1);
         }
       }
     };
@@ -59,15 +88,12 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   function filterCommentsByTag(comments: ExtendedComment[], targetTag: string): ExtendedComment[] {
     return comments.filter((commentItem) => {
       try {
-        if (!commentItem.json_metadata) {
-          return false; // Skip if json_metadata is empty
-        }
+        if (!commentItem.json_metadata) return false;
         const metadata = JSON.parse(commentItem.json_metadata);
         const tags = metadata.tags || [];
         return tags.includes(targetTag);
       } catch (error) {
-        console.error('Error parsing JSON metadata for comment:', commentItem, error);
-        return false; // Exclude comments with invalid JSON
+        return false;
       }
     });
   }
@@ -79,78 +105,65 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     );
   }
 
-  // Fetch comments with a minimum size
+  // Fetch comments with a minimum size - OPTIMIZED
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
-    const tag = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || ''
     const author = "peak.snaps";
-    const limit = 20; // Increased from 3 to 20 for better performance
+    const limit = 25; // Fetch more per batch
     const allFilteredComments: ExtendedComment[] = [];
 
-    let hasMoreData = true; // To track if there are more containers to fetch
+    let hasMoreData = true;
     let permlink = lastContainerRef.current?.permlink || "";
     let date = lastContainerRef.current?.date || new Date().toISOString();
 
-    // Safety counter to prevent infinite loops if no posts are found matching criteria
     let loopCount = 0;
-    const maxLoops = 5;
+    const maxLoops = 3; // Reduced loops but better batching
 
     while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
       loopCount++;
 
-      const result = await HiveClient.database.call('get_discussions_by_author_before_date', [
+      const containers = await HiveClient.database.call('get_discussions_by_author_before_date', [
         author,
         permlink,
         date,
         limit,
       ]);
 
-      if (!result.length) {
+      if (!containers.length) {
         hasMoreData = false;
         break;
       }
 
-      // Fetch replies in parallel
-      const repliesPromises = result.map((resultItem: any) =>
-        HiveClient.database.call("get_content_replies", [
-          author,
-          resultItem.permlink,
-        ])
-      );
+      // BATCH FETCH ALL REPLIES IN ONE REQUEST
+      const batchParams = containers.map((c: any) => [author, c.permlink]);
+      const batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
 
-      const repliesResults = await Promise.all(repliesPromises);
-
-      for (let i = 0; i < result.length; i++) {
-        const resultItem = result[i];
-        const comments = repliesResults[i] as ExtendedComment[];
+      for (let i = 0; i < containers.length; i++) {
+        const container = containers[i];
+        const replies = (batchReplies[i] || []) as ExtendedComment[];
 
         let filteredComments: ExtendedComment[] = [];
 
-        // Apply appropriate filter based on filterType
         if (filterType === 'community') {
-          filteredComments = filterCommentsByTag(comments, tag);
+          filteredComments = filterCommentsByTag(replies, communityTag);
         } else if (filterType === 'all') {
-          filteredComments = comments;
+          filteredComments = replies;
         } else if (filterType === 'following') {
-          filteredComments = filterCommentsByFollowing(comments);
+          filteredComments = filterCommentsByFollowing(replies);
         }
 
-        // Filter out low reputation accounts (spammers/bots)
-        filteredComments = await filterByReputation(filteredComments);
+        // Only filter reputation if we have content
+        if (filteredComments.length > 0) {
+          filteredComments = await filterByReputation(filteredComments);
+          allFilteredComments.push(...filteredComments);
+        }
 
-        allFilteredComments.push(...filteredComments);
-
-        // Add permlink to the fetched set
-        fetchedPermlinksRef.current.add(resultItem.permlink);
-
-        // Update the last container info for the next fetch
-        permlink = resultItem.permlink;
-        date = resultItem.created;
+        fetchedPermlinksRef.current.add(container.permlink);
+        permlink = container.permlink;
+        date = container.created;
       }
     }
 
-    // Update the lastContainerRef state for the next API call
     lastContainerRef.current = { permlink, date };
-
     return allFilteredComments;
   }
 
@@ -158,20 +171,19 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   useEffect(() => {
     lastContainerRef.current = null;
     fetchedPermlinksRef.current.clear();
-    setComments([]);
+    // Don't clear comments immediately if we have cached ones
+    const cacheKey = `${CACHE_KEY_PREFIX}${filterType}_${username || 'guest'}`;
+    if (!sessionStorage.getItem(cacheKey)) {
+      setComments([]);
+    }
     setHasMore(true);
     setCurrentPage(1);
-    setFetchTrigger(prev => prev + 1); // Trigger a new fetch
+    setFetchTrigger(prev => prev + 1);
   }, [filterType, username]);
 
-  // Fetch posts when `currentPage` changes (or when followingListLoaded changes for following filter)
+  // Fetch posts
   useEffect(() => {
-    // Only wait for following list if we're on the following filter
-    if (filterType === 'following') {
-      if (!followingListLoaded) {
-        return; // Wait for following list to load
-      }
-    }
+    if (filterType === 'following' && !followingListLoaded) return;
 
     const fetchPosts = async () => {
       setIsLoading(true);
@@ -179,13 +191,23 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         const newSnaps = await getMoreSnaps();
 
         if (newSnaps.length < pageMinSize) {
-          setHasMore(false); // No more items to fetch
+          setHasMore(false);
         }
 
-        // Avoid duplicates in the comments array
         setComments((prevPosts) => {
           const existingPermlinks = new Set(prevPosts.map((post) => post.permlink));
           const uniqueSnaps = newSnaps.filter((snap) => !existingPermlinks.has(snap.permlink));
+
+          // If first page, we might replace cache/stale data
+          if (currentPage === 1) {
+            const cacheKey = `${CACHE_KEY_PREFIX}${filterType}_${username || 'guest'}`;
+            const cachedData = sessionStorage.getItem(cacheKey);
+            if (cachedData && prevPosts.length > 0 && uniqueSnaps.length > 0) {
+              // We have fresh data and cached data, prefer fresh
+              return uniqueSnaps;
+            }
+          }
+
           return [...prevPosts, ...uniqueSnaps];
         });
       } catch (err) {
@@ -196,25 +218,14 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     };
 
     fetchPosts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, fetchTrigger]);
 
-  // Load the next page with throttling
-  const loadNextPage = (() => {
-    let isThrottled = false;
-    return () => {
-      if (!isLoading && hasMore && !isThrottled) {
-        isThrottled = true;
-        setCurrentPage((prevPage) => prevPage + 1);
-        // Throttle for 1 second
-        setTimeout(() => {
-          isThrottled = false;
-        }, 1000);
-      }
-    };
-  })();
+  const loadNextPage = () => {
+    if (!isLoading && hasMore) {
+      setCurrentPage((prevPage) => prevPage + 1);
+    }
+  };
 
-  // Refresh function to refetch data (F5 equivalent)
   const refresh = () => {
     lastContainerRef.current = null;
     fetchedPermlinksRef.current.clear();
