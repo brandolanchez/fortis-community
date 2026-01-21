@@ -85,11 +85,11 @@ export const fortisWorkoutTheme = extendTheme({
         Input: {
             baseStyle: {
                 field: {
-                    color: 'black',
+                    color: 'text',
                     _placeholder: {
                         color: 'gray.500',
                     },
-                    bg: 'white',
+                    bg: 'background',
                     borderColor: 'gray.600',
                 },
             },
@@ -99,11 +99,11 @@ export const fortisWorkoutTheme = extendTheme({
         },
         Textarea: {
             baseStyle: {
-                color: 'black',
+                color: 'text',
                 _placeholder: {
                     color: 'gray.500',
                 },
-                bg: 'white',
+                bg: 'background',
                 borderColor: 'gray.600',
             },
             defaultProps: {

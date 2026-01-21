@@ -10,22 +10,21 @@ interface FeedTabFilterProps {
   isLoggedIn?: boolean;
 }
 
-export default function FeedTabFilter({ 
-  activeFilter, 
-  onFilterChange, 
+export default function FeedTabFilter({
+  activeFilter,
+  onFilterChange,
   communityName = 'HiveBR',
-  isLoggedIn = false 
+  isLoggedIn = false
 }: FeedTabFilterProps) {
-  
+
   const tabs: { label: string; value: SnapFilterType; requiresAuth?: boolean }[] = [
     { label: communityName, value: 'community' },
-    { label: 'All', value: 'all' },
     { label: 'Following', value: 'following', requiresAuth: true },
   ];
 
   return (
-    <Box 
-      bg="background" 
+    <Box
+      bg="background"
       position="sticky"
       top={0}
       zIndex={10}
@@ -37,7 +36,7 @@ export default function FeedTabFilter({
         {tabs.map((tab) => {
           const isDisabled = tab.requiresAuth && !isLoggedIn;
           const isActive = activeFilter === tab.value;
-          
+
           return (
             <Button
               key={tab.value}
