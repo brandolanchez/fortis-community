@@ -106,6 +106,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
   }
 
   // Fetch comments - SIMPLIFIED TO PREVENT HANGS
+  // Fetch comments - AGGRESSIVE SEARCH TO FIND COMMUNITY SNAPS
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const author = "peak.snaps";
     const limit = 100; // Hive max limit
@@ -116,9 +117,9 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     let date = lastContainerRef.current?.date || new Date().toISOString();
 
     let loopCount = 0;
-    const maxLoops = 20; // Aggressively search up to 2000 threads
+    const maxLoops = 10; // Balanced for speed vs discovery
 
-    console.log(`Starting aggressive fetch from ${date}...`);
+    console.log(`[useSnaps] Searching ${filterType} snaps starting from ${date}...`);
 
     try {
       while (allFilteredComments.length < pageMinSize && hasMoreData && loopCount < maxLoops) {
@@ -129,7 +130,10 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
           permlink,
           date,
           limit,
-        ]);
+        ]).catch(err => {
+          console.error("[useSnaps] Dhive call failed:", err);
+          return [];
+        });
 
         if (!containers || containers.length === 0) {
           hasMoreData = false;
@@ -143,12 +147,12 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         try {
           batchReplies = await hiveBatchFetch('condenser_api', 'get_content_replies', batchParams);
         } catch (error) {
-          console.warn('Batch fetch failed, using sequential fallback');
+          console.warn('[useSnaps] Batch fetch failed, using sequential fallback');
           batchReplies = await Promise.all(
             containers.slice(0, 5).map((c: any) =>
               HiveClient.database.call('get_content_replies', [author, c.permlink]).catch(() => [])
             )
-          );
+          ).catch(() => []);
         }
 
         for (let i = 0; i < containers.length; i++) {
@@ -157,7 +161,7 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
 
           let filteredComments: ExtendedComment[] = [];
 
-          if (filterType === 'community') {
+          if (filterType === 'community' && communityTag) {
             filteredComments = filterCommentsByTag(replies, communityTag);
           } else if (filterType === 'all') {
             filteredComments = replies;
@@ -181,11 +185,11 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         }
       }
 
-      console.log(`Deep search finished. Found ${allFilteredComments.length} snaps after searching ${loopCount} batches.`);
+      console.log(`[useSnaps] Search finished. Found ${allFilteredComments.length} snaps after ${loopCount} loops.`);
       lastContainerRef.current = { permlink, date };
 
     } catch (error) {
-      console.error("Error in getMoreSnaps:", error);
+      console.error("[useSnaps] Critical error in getMoreSnaps:", error);
     }
 
     return allFilteredComments;
