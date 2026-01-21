@@ -4,12 +4,11 @@
  */
 
 const DEFAULT_NODES = [
-    "https://api.hive.blog",
+    "https://api.syncad.com",
     "https://api.deathwing.me",
     "https://api.openhive.network",
-    "https://hive-api.3speak.tv",
-    "https://hiveapi.actifit.io",
-    "https://api.syncad.com",
+    "https://rpc.mahdiyari.info",
+    "https://api.hive.blog",
 ];
 
 interface JsonRpcRequest {
@@ -37,11 +36,15 @@ export async function hiveBatchFetch<T = any>(
                 params,
             }));
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
             const response = await fetch(node, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(requests),
-            });
+                signal: controller.signal,
+            }).finally(() => clearTimeout(timeoutId));
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
