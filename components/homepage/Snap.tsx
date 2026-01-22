@@ -43,6 +43,22 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
         return postAge < sevenDays;
     }, [user, comment.author, comment.created]);
 
+    // Check if user can delete (is author, no replies, not paid out, no active votes)
+    const canDelete = useMemo(() => {
+        if (!user || user !== comment.author) return false;
+        if (comment.children > 0) return false;
+
+        // Check if paid out (7 days)
+        const postAge = Date.now() - new Date(comment.created).getTime();
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        if (postAge > sevenDays) return false;
+
+        // Strict check: if it has votes, Hive usually prevents deletion
+        if (comment.active_votes && comment.active_votes.length > 0) return false;
+
+        return true;
+    }, [user, comment.author, comment.created, comment.children, comment.active_votes]);
+
     // Extract Hive post URLs for preview cards
     const hivePostUrls = useMemo(
         () => extractHivePostUrls(comment.body),
@@ -144,7 +160,8 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
     }
 
     async function handleDeleteSnap() {
-        console.log("Delete button clicked");
+        console.log("Delete button clicked for:", comment.author, comment.permlink);
+
         if (!user) {
             console.log("No user found");
             return;
@@ -155,7 +172,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
             return;
         }
 
-        console.log("Proceeding to delete...");
+        console.log("Proceeding to delete...", { author: comment.author, permlink: comment.permlink });
 
         try {
             // Direct implementation to debug
@@ -188,9 +205,10 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                     } else {
                         toast({
                             title: 'Delete Failed',
-                            description: response.message || 'Unknown error',
+                            description: `${response.message} (Auth: ${comment.author}, Perm: ${comment.permlink})` || 'Unknown error',
                             status: 'error',
-                            duration: 5000,
+                            duration: 10000,
+                            isClosable: true,
                         });
                     }
                 }
@@ -379,7 +397,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                                             Edit
                                         </MenuItem>
                                     )}
-                                    {user === comment.author && (
+                                    {canDelete && (
                                         <MenuItem
                                             icon={<FaTrash />}
                                             onClick={handleDeleteSnap}
