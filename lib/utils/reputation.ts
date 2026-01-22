@@ -11,11 +11,21 @@ const REPUTATION_API = 'https://api.syncad.com/reputation-api/accounts';
 const repCache = new Map<string, { rep: number; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Flag to temporarily disable API calls if it's failing
+let apiFailing = false;
+let lastFailureTime = 0;
+const FAILURE_COOLDOWN = 60 * 1000; // 1 minute
+
 /**
  * Get user reputation from Syncad API
  * Returns the raw reputation score (can be negative)
  */
 export async function getUserReputation(username: string): Promise<number> {
+  // If API was recently failing, don't even try
+  if (apiFailing && Date.now() - lastFailureTime < FAILURE_COOLDOWN) {
+    return 25;
+  }
+
   try {
     // Check cache first
     const cached = repCache.get(username);
@@ -23,19 +33,24 @@ export async function getUserReputation(username: string): Promise<number> {
       return cached.rep;
     }
 
-    // Add a 2s timeout to the fetch to prevent hanging
+    // Add a 1s timeout (was 2s) to prevent hanging
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
 
     const response = await fetch(`${REPUTATION_API}/${username}/reputation`, {
       signal: controller.signal
     }).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok) {
-      return 25; // Default to neutral reputation on error
+      if (response.status >= 500) {
+        apiFailing = true;
+        lastFailureTime = Date.now();
+      }
+      return 25;
     }
 
     const reputation = await response.json();
+    apiFailing = false; // Reset on success
 
     // Cache the result
     repCache.set(username, {
@@ -46,7 +61,9 @@ export async function getUserReputation(username: string): Promise<number> {
     return reputation;
   } catch (error) {
     console.warn(`Reputation check failed for ${username}`, error);
-    return 25; // Default to neutral on error (fail-open)
+    // Determine if it was a timeout or network error to potentially flag API failure
+    lastFailureTime = Date.now();
+    return 25;
   }
 }
 

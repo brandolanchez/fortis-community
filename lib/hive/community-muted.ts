@@ -27,19 +27,19 @@ class CommunityMutedManager {
         body: JSON.stringify({
           jsonrpc: '2.0',
           method: 'bridge.list_all_subscriptions',
-          params: { community: 'hive-139531' },
+          params: { community: process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971' },
           id: 1
         })
       });
-      
+
       const data = await response.json();
       const subscriptions = data.result || [];
-      
+
       // Filter for muted accounts
       const mutedAccounts = subscriptions
         .filter((sub: any) => sub[1] === 'muted')
         .map((sub: any) => sub[0]);
-      
+
       return mutedAccounts;
     } catch (error) {
       console.error('Failed to fetch community muted list:', error);
@@ -53,21 +53,21 @@ class CommunityMutedManager {
   private loadFromStorage(): MutedListCache | null {
     try {
       if (typeof window === 'undefined') return null;
-      
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return null;
-      
+
       const data = JSON.parse(stored);
       const cache: MutedListCache = {
         accounts: new Set(data.accounts),
         timestamp: data.timestamp
       };
-      
+
       // Check if cache is still valid
       if (Date.now() - cache.timestamp < CACHE_DURATION) {
         return cache;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Failed to load muted list from storage:', error);
@@ -81,7 +81,7 @@ class CommunityMutedManager {
   private saveToStorage(accounts: Set<string>): void {
     try {
       if (typeof window === 'undefined') return;
-      
+
       const data = {
         accounts: Array.from(accounts),
         timestamp: Date.now()
@@ -117,15 +117,15 @@ class CommunityMutedManager {
     this.loading = (async () => {
       const mutedAccounts = await this.fetchCommunityMutedList();
       const mutedSet = new Set(mutedAccounts.map(a => a.toLowerCase()));
-      
+
       this.cache = {
         accounts: mutedSet,
         timestamp: Date.now()
       };
-      
+
       this.saveToStorage(mutedSet);
       this.loading = null;
-      
+
       return mutedSet;
     })();
 

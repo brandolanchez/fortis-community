@@ -86,31 +86,33 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
 
   // Filter comments by the target tag
   function filterCommentsByTag(comments: ExtendedComment[], targetTag: string): ExtendedComment[] {
+    const normalizedTarget = targetTag.toLowerCase();
     return comments.filter((commentItem) => {
       try {
         if (!commentItem.json_metadata) return false;
         const metadata = JSON.parse(commentItem.json_metadata);
-        const tags = metadata.tags || [];
-        return tags.includes(targetTag);
+        const tags = (metadata.tags || []).map((t: string) => t.toLowerCase());
+        return tags.includes(normalizedTarget);
       } catch (error) {
         return false;
       }
     });
   }
 
-  // Filter comments by following
+  // Filter comments by following (including self)
   function filterCommentsByFollowing(comments: ExtendedComment[]): ExtendedComment[] {
+    const following = followingListRef.current;
     return comments.filter((commentItem) =>
-      followingListRef.current.includes(commentItem.author)
+      following.includes(commentItem.author) || (username && commentItem.author === username)
     );
   }
 
-  // Fetch comments - HIGH-SPEED CHUNKED SEARCH
+  // Fetch comments - HYBRID SEARCH (Community Posts + Container Replies)
   async function getMoreSnaps(): Promise<ExtendedComment[]> {
     const author = "peak.snaps";
     const chunkLimit = 100; // Containers per Hive API call
     const subBatchSize = 25; // Sub-batches for replies help avoid timeouts
-    const allFilteredComments: ExtendedComment[] = [];
+    let allFilteredComments: ExtendedComment[] = [];
 
     let permlink = lastContainerRef.current?.permlink || "";
     let date = lastContainerRef.current?.date || new Date().toISOString();
@@ -119,8 +121,26 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
     console.log(`[useSnaps] Search starting from ${date}...`);
 
     try {
-      // Search up to 15 chunks of 100 containers (total 1500)
-      for (let chunk = 0; chunk < 15 && allFilteredComments.length < pageMinSize && hasMoreData; chunk++) {
+      // 1. Fetch direct community posts if in community mode
+      if (filterType === 'community' && communityTag && currentPage === 1) {
+        try {
+          const directPosts = await HiveClient.database.call('get_discussions_by_created', [{
+            tag: communityTag,
+            limit: 20
+          }]) as ExtendedComment[];
+
+          if (directPosts && directPosts.length > 0) {
+            allFilteredComments.push(...directPosts);
+            console.log(`[useSnaps] Found ${directPosts.length} direct community posts.`);
+          }
+        } catch (err) {
+          console.warn("[useSnaps] Failed to fetch direct community posts:", err);
+        }
+      }
+
+      // 2. Existing container-reply logic
+      // Search up to 10 chunks of 100 containers (total 1000)
+      for (let chunk = 0; chunk < 10 && allFilteredComments.length < pageMinSize && hasMoreData; chunk++) {
 
         const containers = await HiveClient.database.call('get_discussions_by_author_before_date', [
           author,
@@ -176,6 +196,16 @@ export const useSnaps = ({ filterType = 'community', username }: UseSnapsProps =
         if (containers.length < chunkLimit) {
           hasMoreData = false;
         }
+      }
+
+      // Deduplicate by permlink
+      const uniqueMap = new Map();
+      allFilteredComments.forEach(c => uniqueMap.set(c.permlink, c));
+      allFilteredComments = Array.from(uniqueMap.values());
+
+      // 3. Filter by reputation ONCE at the end of the chunk process (Massive performance boost)
+      if (allFilteredComments.length > 0) {
+        allFilteredComments = await filterByReputation(allFilteredComments);
       }
 
       console.log(`[useSnaps] Search finished. Found ${allFilteredComments.length} snaps.`);

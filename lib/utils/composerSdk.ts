@@ -20,7 +20,7 @@
  */
 
 // Core composer (no video/audio dependencies)
-import { 
+import {
     createComposer,
     generatePermlink,
     extractHashtags,
@@ -63,16 +63,16 @@ export {
  * Pre-configured composer instance for Snapie.io
  */
 export const snapieComposer = createComposer({
-    appName: 'mycommunity',
-    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '', 'snaps'].filter(Boolean),
+    appName: process.env.NEXT_PUBLIC_APP_NAME || 'snapie',
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps'].filter(Boolean),
 });
 
 /**
  * Composer with 10% beneficiaries for video posts
  */
 export const snapieVideoComposer = createComposer({
-    appName: 'mycommunity',
-    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '', 'snaps'].filter(Boolean),
+    appName: process.env.NEXT_PUBLIC_APP_NAME || 'snapie',
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps'].filter(Boolean),
     beneficiaries: [{ account: 'snapie', weight: 1000 }], // 10%
 });
 
