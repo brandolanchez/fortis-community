@@ -1,7 +1,7 @@
-import { Box, Text, HStack, Button, Avatar, Link, VStack, Flex, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Textarea, useToast } from '@chakra-ui/react';
+import { Box, Text, HStack, Button, Avatar, Link, VStack, Flex, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Textarea, useToast, Menu, MenuButton, MenuList, MenuItem, IconButton } from '@chakra-ui/react';
 import { Comment } from '@hiveio/dhive';
 import { ExtendedComment } from '@/hooks/useComments';
-import { FaRegComment, FaRegHeart, FaShare, FaHeart, FaEdit, FaRetweet } from "react-icons/fa";
+import { FaRegComment, FaRegHeart, FaShare, FaHeart, FaEdit, FaRetweet, FaEllipsisH, FaTrash, FaLink } from "react-icons/fa";
 import { useKeychain } from '@/contexts/KeychainContext';
 import { useState, useMemo, memo } from 'react';
 import { getPostDate } from '@/lib/utils/GetPostDate';
@@ -10,7 +10,7 @@ import MediaRenderer from '@/components/shared/MediaRenderer';
 import HivePostPreview from '@/components/shared/HivePostPreview';
 import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { useCurrencyDisplay } from '@/hooks/useCurrencyDisplay';
-import { vote, commentWithKeychain } from '@/lib/hive/client-functions';
+import { vote, commentWithKeychain, deleteComment } from '@/lib/hive/client-functions';
 import NextLink from 'next/link';
 
 interface SnapProps {
@@ -29,11 +29,12 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
     const [sliderValue, setSliderValue] = useState(5);
     const [showSlider, setShowSlider] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleted, setIsDeleted] = useState(false);
     const [editedBody, setEditedBody] = useState(comment.body);
     const [isEditing, setIsEditing] = useState(false);
     const payoutDisplay = useCurrencyDisplay(comment);
     const toast = useToast();
-    
+
     // Check if user can edit (is author and post is less than 7 days old)
     const canEdit = useMemo(() => {
         if (!user || user !== comment.author) return false;
@@ -88,24 +89,24 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
         // Optimistic update
         const wasVoted = voted;
         const previousCount = voteCount;
-        
+
         setVoted(true);
         setVoteCount(prev => prev + 1);
         handleHeartClick();
-        
+
         // Send to blockchain
         try {
             if (!user) {
                 throw new Error('Please log in to vote');
             }
-            
+
             const voteResult = await vote({
                 username: user,
                 author: comment.author,
                 permlink: comment.permlink,
                 weight: sliderValue * 100
             });
-            
+
             if (!voteResult.success) {
                 // Rollback on failure
                 setVoted(wasVoted);
@@ -130,26 +131,89 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
         }
     }
 
-    function handleReSnap() {
+    function handleCopyLink() {
         // Copy snap URL to clipboard for easy sharing
         const snapUrl = `${window.location.origin}/@${comment.author}/${comment.permlink}`;
         navigator.clipboard.writeText(snapUrl);
         toast({
             title: 'Link Copied!',
-            description: 'Snap link copied to clipboard. Paste it in a new snap to re-snap!',
+            description: 'Snap link copied to clipboard.',
             status: 'success',
             duration: 3000,
         });
     }
 
+    async function handleDeleteSnap() {
+        console.log("Delete button clicked");
+        if (!user) {
+            console.log("No user found");
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to delete this snap?")) {
+            console.log("User cancelled confirmation");
+            return;
+        }
+
+        console.log("Proceeding to delete...");
+
+        try {
+            // Direct implementation to debug
+            if (!window.hive_keychain) {
+                throw new Error("Hive Keychain not found!");
+            }
+
+            const operations = [
+                ['delete_comment', {
+                    author: comment.author,
+                    permlink: comment.permlink
+                }]
+            ];
+
+            console.log("Requesting broadcast:", operations);
+
+            window.hive_keychain.requestBroadcast(
+                user,
+                operations,
+                'Posting',
+                (response: any) => {
+                    console.log("Keychain response:", response);
+                    if (response.success) {
+                        toast({
+                            title: 'Snap Deleted',
+                            status: 'success',
+                            duration: 3000,
+                        });
+                        setIsDeleted(true);
+                    } else {
+                        toast({
+                            title: 'Delete Failed',
+                            description: response.message || 'Unknown error',
+                            status: 'error',
+                            duration: 5000,
+                        });
+                    }
+                }
+            );
+        } catch (error: any) {
+            console.error("Delete error:", error);
+            toast({
+                title: 'Delete Error',
+                description: error.message || 'Unknown error',
+                status: 'error',
+                duration: 5000,
+            });
+        }
+    }
+
     async function handleEditPost() {
         if (!user || !editedBody.trim()) return;
-        
+
         setIsEditing(true);
         try {
             // Parse existing metadata
             const metadata = comment.json_metadata ? JSON.parse(comment.json_metadata) : {};
-            
+
             // Edit is same as comment but with same permlink
             const response = await commentWithKeychain({
                 data: {
@@ -163,7 +227,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                     comment_options: ''
                 }
             });
-            
+
             if (response && response.success) {
                 toast({
                     title: 'Post Updated',
@@ -191,6 +255,9 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
             setIsEditing(false);
         }
     }
+
+    if (isDeleted) return null;
+
     return (
         <Box pl={level > 0 ? 1 : 0} ml={level > 0 ? 2 : 0}>
             <Box
@@ -203,9 +270,9 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                 width="100%"
             >
                 <HStack mb={2}>
-                    <Avatar 
-                        size="sm" 
-                        name={comment.author} 
+                    <Avatar
+                        size="sm"
+                        name={comment.author}
                         src={`https://images.hive.blog/u/${comment.author}/avatar/sm`}
                     />
                     <Box ml={3}>
@@ -217,20 +284,20 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                         </Text>
                     </Box>
                 </HStack>
-                
+
                 {/* Render media separately using MediaRenderer */}
                 {media && <MediaRenderer mediaContent={media} />}
-                
+
                 {/* Render text content with proper markdown processing - clickable to open full post */}
                 {renderedText && (
-                    <Box 
+                    <Box
                         dangerouslySetInnerHTML={{ __html: renderedText }}
                         onClick={setConversation ? handleConversation : undefined}
                         cursor={setConversation ? "pointer" : "default"}
                         sx={{
                             "& p": { marginBottom: 2 },
-                            "& a": { 
-                                color: "primary", 
+                            "& a": {
+                                color: "primary",
                                 textDecoration: "underline",
                                 cursor: "pointer",
                                 _hover: {
@@ -253,61 +320,95 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                         ))}
                     </VStack>
                 )}
-                
-                {showSlider ? (
-                <Flex mt={4} alignItems="center">
-                    <Box width="100%" mr={2}>
-                        <Slider
-                            aria-label="slider-ex-1"
-                            min={0}
-                            max={100}
-                            value={sliderValue}
-                            onChange={(val) => setSliderValue(val)}
-                        >
-                            <SliderTrack>
-                                <SliderFilledTrack />
-                            </SliderTrack>
-                            <SliderThumb />
-                        </Slider>
-                    </Box>
-                    <Button size="xs" onClick={handleVote}>&nbsp;&nbsp;&nbsp;Vote {sliderValue} %&nbsp;&nbsp;&nbsp;</Button>
-                    <Button size="xs" onClick={handleHeartClick} ml={2}>X</Button>
 
-                </Flex>
-            ) : (
-                <HStack justify="space-between" mt={3}>
-                    <Button leftIcon={voted ? (<FaHeart />) : (<FaRegHeart />)} variant="ghost" onClick={handleHeartClick}>
-                        {voteCount}
-                    </Button>
-                    <HStack spacing={4}>
-                        {/* Reply button - opens reply modal */}
-                        <HStack spacing={1} cursor="pointer" onClick={handleReplyModal}>
-                            <FaRegComment />
-                        </HStack>
-                        {/* View conversation button - opens full post with all comments */}
-                        {setConversation && (
-                            <Text fontWeight="bold" cursor="pointer" onClick={handleConversation}>
-                                {comment.children}
-                            </Text>
-                        )}
-                        <HStack spacing={1} cursor="pointer" onClick={handleReSnap}>
-                            <FaRetweet />
-                            <Text fontSize="sm">Re-Snap/Share</Text>
-                        </HStack>
-                        {canEdit && (
-                            <HStack spacing={1} cursor="pointer" onClick={() => setIsEditModalOpen(true)}>
-                                <FaEdit />
-                                <Text fontSize="sm">Edit</Text>
+                {showSlider ? (
+                    <Flex mt={4} alignItems="center">
+                        <Box width="100%" mr={2}>
+                            <Slider
+                                aria-label="slider-ex-1"
+                                min={0}
+                                max={100}
+                                value={sliderValue}
+                                onChange={(val) => setSliderValue(val)}
+                            >
+                                <SliderTrack>
+                                    <SliderFilledTrack />
+                                </SliderTrack>
+                                <SliderThumb />
+                            </Slider>
+                        </Box>
+                        <Button size="xs" onClick={handleVote}>&nbsp;&nbsp;&nbsp;Vote {sliderValue} %&nbsp;&nbsp;&nbsp;</Button>
+                        <Button size="xs" onClick={handleHeartClick} ml={2}>X</Button>
+
+                    </Flex>
+                ) : (
+                    <HStack justify="space-between" mt={3}>
+                        <Button leftIcon={voted ? (<FaHeart />) : (<FaRegHeart />)} variant="ghost" onClick={handleHeartClick}>
+                            {voteCount}
+                        </Button>
+                        <HStack spacing={4}>
+                            {/* Reply button - opens reply modal */}
+                            <HStack spacing={1} cursor="pointer" onClick={handleReplyModal}>
+                                <FaRegComment />
                             </HStack>
-                        )}
+                            {/* View conversation button - opens full post with all comments */}
+                            {setConversation && (
+                                <Text fontWeight="bold" cursor="pointer" onClick={handleConversation}>
+                                    {comment.children}
+                                </Text>
+                            )}
+                            <Menu>
+                                <MenuButton
+                                    as={IconButton}
+                                    aria-label="Options"
+                                    icon={<FaEllipsisH />}
+                                    variant="ghost"
+                                    size="sm"
+                                    color="white"
+                                    _hover={{ bg: "whiteAlpha.200" }}
+                                />
+                                <MenuList bg="gray.900" borderColor="gray.700">
+                                    {canEdit && (
+                                        <MenuItem
+                                            icon={<FaEdit />}
+                                            onClick={() => setIsEditModalOpen(true)}
+                                            bg="gray.900"
+                                            _hover={{ bg: "gray.700" }}
+                                            color="white"
+                                        >
+                                            Edit
+                                        </MenuItem>
+                                    )}
+                                    {user === comment.author && (
+                                        <MenuItem
+                                            icon={<FaTrash />}
+                                            onClick={handleDeleteSnap}
+                                            color="red.300"
+                                            bg="gray.900"
+                                            _hover={{ bg: "gray.700" }}
+                                        >
+                                            Delete
+                                        </MenuItem>
+                                    )}
+                                    <MenuItem
+                                        icon={<FaLink />}
+                                        onClick={handleCopyLink}
+                                        bg="gray.900"
+                                        _hover={{ bg: "gray.700" }}
+                                        color="white"
+                                    >
+                                        Copy link
+                                    </MenuItem>
+                                </MenuList>
+                            </Menu>
+                        </HStack>
+                        <Text fontWeight="bold" fontSize="sm">
+                            {payoutDisplay}
+                        </Text>
                     </HStack>
-                    <Text fontWeight="bold" fontSize="sm">
-                        {payoutDisplay}
-                    </Text>
-                </HStack>
-            )}
+                )}
             </Box>
-            
+
             {/* Edit Modal */}
             <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} size="xl">
                 <ModalOverlay />
@@ -338,7 +439,7 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
                     </ModalFooter>
                 </ModalContent>
             </Modal>
-            
+
             {/* Render replies recursively */}
             {replies && replies.length > 0 && (
                 <VStack spacing={2} align="stretch" mt={2}>

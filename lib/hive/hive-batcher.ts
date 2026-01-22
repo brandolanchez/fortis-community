@@ -4,11 +4,11 @@
  */
 
 const DEFAULT_NODES = [
-    "https://api.syncad.com",
+    "https://api.hive.blog",
     "https://api.deathwing.me",
     "https://api.openhive.network",
     "https://rpc.mahdiyari.info",
-    "https://api.hive.blog",
+    "https://api.syncad.com",
 ];
 
 interface JsonRpcRequest {

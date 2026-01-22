@@ -17,6 +17,12 @@ declare global {
         method: string,
         callback: (response: { success: boolean; result?: string; message?: string }) => void
       ) => void;
+      requestBroadcast: (
+        username: string,
+        operations: any[],
+        method: string,
+        callback: (response: any) => void
+      ) => void;
     };
   }
 }
@@ -38,22 +44,22 @@ export async function signAndBroadcastWithKeychain(
 ): Promise<{ success: boolean; result?: any; error?: string }> {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     // Convert keyType to KeychainKeyTypes
     const method = keyType === 'posting' ? KeychainKeyTypes.posting : KeychainKeyTypes.active;
-    
+
     const result = await keychain.broadcast({
       username,
       operations,
       method
     });
-    
+
     if (result && result.success) {
       return { success: true, result };
     } else {
-      return { 
-        success: false, 
-        error: (result as any)?.message || 'Broadcast failed' 
+      return {
+        success: false,
+        error: (result as any)?.message || 'Broadcast failed'
       };
     }
   } catch (error) {
@@ -122,7 +128,7 @@ export async function loginWithKeychain(username: string) {
     const login = await keychain
       .login(
         formParamsAsObject.data as Login);
-    return({ login });
+    return ({ login });
   } catch (error) {
     console.log({ error });
   }
@@ -161,13 +167,13 @@ export async function transferWithKeychain(username: string, destination: string
 export async function powerUpWithKeychain(username: string, amount: number) {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     const powerUp = await keychain.powerUp({
       username: username,
       recipient: username,
       hive: amount.toFixed(3),
     } as PowerUp);
-    
+
     console.log({ powerUp });
     return powerUp;
   } catch (error) {
@@ -179,12 +185,12 @@ export async function powerUpWithKeychain(username: string, amount: number) {
 export async function powerDownWithKeychain(username: string, hivePower: number) {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     const powerDown = await keychain.powerDown({
       username: username,
       hive_power: hivePower.toFixed(3),
     } as PowerDown);
-    
+
     console.log({ powerDown });
     return powerDown;
   } catch (error) {
@@ -196,14 +202,14 @@ export async function powerDownWithKeychain(username: string, hivePower: number)
 export async function delegateWithKeychain(username: string, delegatee: string, amount: number) {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     const delegation = await keychain.delegation({
       username: username,
       delegatee: delegatee,
       amount: amount.toFixed(3),
       unit: 'HP',
     } as Delegation);
-    
+
     console.log({ delegation });
     return delegation;
   } catch (error) {
@@ -215,13 +221,13 @@ export async function delegateWithKeychain(username: string, delegatee: string, 
 export async function broadcastWithKeychain(username: string, operations: any[], method: KeychainKeyTypes = KeychainKeyTypes.active) {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     const broadcast = await keychain.broadcast({
       username: username,
       operations: operations,
       method: method,
     } as Broadcast);
-    
+
     console.log({ broadcast });
     return broadcast;
   } catch (error) {
@@ -409,7 +415,7 @@ export async function uploadAudioTo3Speak(
 ): Promise<{ success: boolean; permlink?: string; cid?: string; playUrl?: string; apiUrl?: string; error?: string }> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_3SPEAK_API_KEY;
-    
+
     if (!apiKey) {
       throw new Error('3Speak API key not configured');
     }
@@ -438,7 +444,7 @@ export async function uploadAudioTo3Speak(
     }
 
     const data = await response.json();
-    
+
     return {
       success: true,
       permlink: data.permlink,
@@ -455,32 +461,32 @@ export async function uploadAudioTo3Speak(
   }
 }
 
-export function getFileSignature (file: File): Promise<string> {
+export function getFileSignature(file: File): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
-      const reader = new FileReader();
+    const reader = new FileReader();
 
-      reader.onload = async () => {
-          if (reader.result) {
-              const content = Buffer.from(reader.result as ArrayBuffer);
-              const hash = crypto.createHash('sha256')
-                  .update('ImageSigningChallenge')
-                  .update(content as any)
-                  .digest('hex');
-              try {
-                  const signature = await signImageHash(hash);
-                  resolve(signature);
-              } catch (error) {
-                  console.error('Error signing the hash:', error);
-                  reject(error);
-              }
-          } else {
-              reject(new Error('Failed to read file.'));
-          }
-      };
-      reader.onerror = () => {
-          reject(new Error('Error reading file.'));
-      };
-      reader.readAsArrayBuffer(file);
+    reader.onload = async () => {
+      if (reader.result) {
+        const content = Buffer.from(reader.result as ArrayBuffer);
+        const hash = crypto.createHash('sha256')
+          .update('ImageSigningChallenge')
+          .update(content as any)
+          .digest('hex');
+        try {
+          const signature = await signImageHash(hash);
+          resolve(signature);
+        } catch (error) {
+          console.error('Error signing the hash:', error);
+          reject(error);
+        }
+      } else {
+        reject(new Error('Failed to read file.'));
+      }
+    };
+    reader.onerror = () => {
+      reject(new Error('Error reading file.'));
+    };
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -582,24 +588,24 @@ export async function uploadImageWithKeychain(
   }
 ): Promise<string> {
   console.log('🔐 uploadImageWithKeychain called for:', file.name, 'user:', username);
-  
+
   if (!window.hive_keychain) {
     throw new Error('Hive Keychain is not installed. Please install it from https://hive-keychain.com/');
   }
-  
+
   // Read file into buffer
   console.log('📖 Reading file...');
   const fileContent = await readFileAsBuffer(file);
   console.log('📖 File read, size:', fileContent.length, 'bytes');
-  
+
   // Create the challenge buffer (ImageSigningChallenge + file content)
   const prefix = Buffer.from('ImageSigningChallenge');
   const challengeBuffer = Buffer.concat([prefix, fileContent]);
-  
+
   // Convert to JSON string - this is what Keychain expects
   const challengeString = JSON.stringify(challengeBuffer);
   console.log('✍️ Requesting signature from Keychain...');
-  
+
   // Sign with Keychain - it will hash internally and sign
   const signature = await new Promise<string>((resolve, reject) => {
     window.hive_keychain!.requestSignBuffer(
@@ -615,9 +621,9 @@ export async function uploadImageWithKeychain(
       }
     );
   });
-  
+
   console.log('✍️ Signature received:', signature.substring(0, 20) + '...');
-  
+
   // Upload to Hive image server
   const uploadUrl = `https://images.hive.blog/${username}/${signature}`;
   console.log('📤 Uploading to:', uploadUrl);
@@ -633,10 +639,10 @@ export async function uploadImageWithKeychain(
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const progress = (event.loaded / event.total) * 100;
-        
+
         // Call progress callback if provided
         options?.onProgress?.(progress);
-        
+
         // Update progress array if provided (for batch uploads)
         if (options?.index !== undefined && options?.setUploadProgress) {
           options.setUploadProgress((prevProgress: number[]) => {
@@ -665,7 +671,7 @@ export async function uploadImageWithKeychain(
           if (errorResponse.error) {
             errorMsg = errorResponse.error;
           }
-        } catch {}
+        } catch { }
         console.error('❌ Upload failed:', errorMsg);
         reject(new Error(errorMsg));
       }
@@ -680,32 +686,32 @@ export async function uploadImageWithKeychain(
 }
 
 export async function getPost(user: string, postId: string) {
-    const postContent = await HiveClient.database.call('get_content', [
-      user,
-      postId,
-    ]);
-    if (!postContent) throw new Error('Failed to fetch post content');
+  const postContent = await HiveClient.database.call('get_content', [
+    user,
+    postId,
+  ]);
+  if (!postContent) throw new Error('Failed to fetch post content');
 
-    return postContent as Discussion;
+  return postContent as Discussion;
 }
 
 export function getPayoutValue(post: any): string {
-    const createdDate = new Date(post.created);
-    const now = new Date();
-    
-    // Calculate the time difference in days
-    const timeDifferenceInMs = now.getTime() - createdDate.getTime();
-    const timeDifferenceInDays = timeDifferenceInMs / (1000 * 60 * 60 * 24);
-    
-    if (timeDifferenceInDays >= 7) {
-      // Post is older than 7 days, return the total payout value
-      return post.total_payout_value.replace(" HBD", "");
-    } else if (timeDifferenceInDays < 7) {
-      // Post is less than 7 days old, return the pending payout value
-      return post.pending_payout_value.replace(" HBD", "");
-    } else {
-      return "0.000"
-    }
+  const createdDate = new Date(post.created);
+  const now = new Date();
+
+  // Calculate the time difference in days
+  const timeDifferenceInMs = now.getTime() - createdDate.getTime();
+  const timeDifferenceInDays = timeDifferenceInMs / (1000 * 60 * 60 * 24);
+
+  if (timeDifferenceInDays >= 7) {
+    // Post is older than 7 days, return the total payout value
+    return post.total_payout_value.replace(" HBD", "");
+  } else if (timeDifferenceInDays < 7) {
+    // Post is less than 7 days old, return the pending payout value
+    return post.pending_payout_value.replace(" HBD", "");
+  } else {
+    return "0.000"
+  }
 }
 
 export async function findLastNotificationsReset(username: string, start = -1, loopCount = 0): Promise<string> {
@@ -724,11 +730,11 @@ export async function findLastNotificationsReset(username: string, start = -1, l
 
     const transactions = await HiveClient.call('account_history_api', 'get_account_history', params);
     const history = transactions.history.reverse();
-      
+
     if (history.length === 0) {
       return '1970-01-01T00:00:00Z';
     }
-    
+
     for (const item of history) {
       if (item[1].op.value.id === 'notify') {
         const json = JSON.parse(item[1].op.value.json);
@@ -748,7 +754,7 @@ export async function fetchNewNotifications(username: string) {
   try {
     const notifications: Notifications[] = await HiveClient.call('bridge', 'account_notifications', { account: username, limit: 100 });
     const lastDate = await findLastNotificationsReset(username);
-    
+
     if (lastDate) {
       const filteredNotifications = notifications.filter(notification => notification.date > lastDate);
       return filteredNotifications;
@@ -761,42 +767,42 @@ export async function fetchNewNotifications(username: string) {
   }
 }
 
-export async function convertVestToHive (amount: number) {
+export async function convertVestToHive(amount: number) {
   const globalProperties = await HiveClient.call('condenser_api', 'get_dynamic_global_properties', []);
   const totalVestingFund = extractNumber(globalProperties.total_vesting_fund_hive)
   const totalVestingShares = extractNumber(globalProperties.total_vesting_shares)
-  const vestHive = ( totalVestingFund * amount ) / totalVestingShares
+  const vestHive = (totalVestingFund * amount) / totalVestingShares
   return vestHive
 }
 
-export async function getProfile (username: string) {
-  const profile = await HiveClient.call('bridge', 'get_profile', {account: username});
+export async function getProfile(username: string) {
+  const profile = await HiveClient.call('bridge', 'get_profile', { account: username });
   return profile
 }
 
-export async function getCommunityInfo (username: string) {
-  const profile = await HiveClient.call('bridge', 'get_community', {name: username});
+export async function getCommunityInfo(username: string) {
+  const profile = await HiveClient.call('bridge', 'get_community', { name: username });
   return profile
 }
 
 export async function findPosts(query: string, params: any) {
-      const by = 'get_discussions_by_' + query;
-      const posts = await HiveClient.database.call(by, [params]);
+  const by = 'get_discussions_by_' + query;
+  const posts = await HiveClient.database.call(by, [params]);
   return posts
 }
 
 export async function getLastSnapsContainer() {
-  const author = "peak.snaps";   
+  const author = "peak.snaps";
   const beforeDate = new Date().toISOString().split('.')[0];
   const permlink = '';
   const limit = 1;
 
   const result = await HiveClient.database.call('get_discussions_by_author_before_date',
-      [author, permlink, beforeDate, limit]);
+    [author, permlink, beforeDate, limit]);
 
   return {
-      author,
-      permlink: result[0].permlink
+    author,
+    permlink: result[0].permlink
   }
 }
 
@@ -846,14 +852,14 @@ export async function getCommunityMutedAccounts(community: string): Promise<stri
       community,
       limit: 1000
     });
-    
+
     if (result && Array.isArray(result)) {
       // Each item is [account, role, title] tuple
       // Filter for muted role and extract account names
       const mutedAccounts = result
         .filter((r: any) => r[1] === 'muted')
         .map((r: any) => r[0]);
-      
+
       return mutedAccounts;
     }
     return [];
@@ -877,7 +883,7 @@ export async function setUserRelationship(
 ): Promise<boolean> {
   try {
     const keychain = new KeychainSDK(window);
-    
+
     const json = JSON.stringify([
       'follow',
       {
@@ -897,7 +903,7 @@ export async function setUserRelationship(
     };
 
     const result = await keychain.custom(formParamsAsObject.data as unknown as Custom);
-    
+
     if (result.success) {
       console.log('Relationship update success:', result);
       return true;
@@ -928,7 +934,7 @@ export async function getFollowing(
       'blog',
       limit
     ]);
-    
+
     // The result is an array of objects with 'following' property
     return result.map((item: any) => item.following).filter(Boolean);
   } catch (error) {
@@ -956,7 +962,7 @@ export async function getFollowers(
       'blog',
       limit
     ]);
-    
+
     // The result is an array of objects with 'follower' property
     return result.map((item: any) => item.follower).filter(Boolean);
   } catch (error) {
@@ -975,7 +981,7 @@ export async function getCryptoPrices(): Promise<{ hive: number; hbd: number }> 
       'https://api.coingecko.com/api/v3/simple/price?ids=hive,hive_dollar&vs_currencies=usd'
     );
     const data = await response.json();
-    
+
     return {
       hive: data.hive?.usd || 0,
       hbd: data.hive_dollar?.usd || 0,
@@ -1027,7 +1033,7 @@ export async function getTransactionHistory(
       if (oldestIndex === -1 || index < oldestIndex) {
         oldestIndex = index;
       }
-      
+
       const op = transaction.op;
       const opType = op[0];
       const opData = op[1];
@@ -1057,7 +1063,7 @@ export async function getTransactionHistory(
         // Convert VESTS to HIVE
         const vestsAmount = parseFloat(opData.vesting_shares.split(' ')[0]);
         const hiveAmount = await convertVestToHive(vestsAmount);
-        
+
         transactions.push({
           type: 'power_down',
           from: opData.account,
@@ -1089,7 +1095,7 @@ export async function getTransactionHistory(
         });
       } else if (opType === 'claim_reward_balance') {
         const rewards = [];
-        
+
         if (opData.reward_hive && opData.reward_hive !== '0.000 HIVE') {
           rewards.push(opData.reward_hive);
         }
@@ -1102,7 +1108,7 @@ export async function getTransactionHistory(
           const hiveAmount = await convertVestToHive(vestsAmount);
           rewards.push(`${hiveAmount.toFixed(3)} HP`);
         }
-        
+
         if (rewards.length > 0) {
           transactions.push({
             type: 'claim_rewards',
@@ -1126,4 +1132,31 @@ export async function getTransactionHistory(
     console.error('Error fetching transaction history:', error);
     return { transactions: [], oldestIndex: -1 };
   }
+}
+
+export function deleteComment(author: string, permlink: string): Promise<{ success: boolean, error?: string }> {
+  return new Promise((resolve) => {
+    if (!window.hive_keychain) {
+      resolve({ success: false, error: "Hive Keychain not found" });
+      return;
+    }
+    const operations = [
+      ['delete_comment', {
+        author,
+        permlink
+      }]
+    ];
+    window.hive_keychain.requestBroadcast(
+      author,
+      operations,
+      'Posting',
+      (response: any) => {
+        if (response.success) {
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response.message });
+        }
+      }
+    );
+  });
 }
