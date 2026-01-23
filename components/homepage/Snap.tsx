@@ -160,7 +160,10 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
     }
 
     async function handleDeleteSnap() {
-        console.log("Delete button clicked for:", comment.author, comment.permlink);
+        const cleanAuthor = comment.author ? comment.author.trim() : '';
+        const cleanPermlink = comment.permlink ? comment.permlink.trim() : '';
+
+        console.log("Delete button clicked for:", cleanAuthor, cleanPermlink);
 
         if (!user) {
             console.log("No user found");
@@ -172,47 +175,47 @@ const Snap = memo(({ comment, onOpen, setReply, setConversation, level = 0 }: Sn
             return;
         }
 
-        console.log("Proceeding to delete...", { author: comment.author, permlink: comment.permlink });
+        console.log("Proceeding to delete...", { author: cleanAuthor, permlink: cleanPermlink });
 
         try {
-            // Direct implementation to debug
+            // Use Keychain wrapper for deletion to ensure consistent handling
+            // and to leverage existing error handling above.
+            // Check Keychain availability again defensively
             if (!window.hive_keychain) {
                 throw new Error("Hive Keychain not found!");
             }
 
-            const operations = [
-                ['delete_comment', {
-                    author: comment.author,
-                    permlink: comment.permlink
-                }]
-            ];
+            // Broadcast via helper which wraps the Keychain call and normalizes responses
+            const result = await deleteComment(cleanAuthor, cleanPermlink);
 
-            console.log("Requesting broadcast:", operations);
-
-            window.hive_keychain.requestBroadcast(
-                user,
-                operations,
-                'Posting',
-                (response: any) => {
-                    console.log("Keychain response:", response);
-                    if (response.success) {
-                        toast({
-                            title: 'Snap Deleted',
-                            status: 'success',
-                            duration: 3000,
-                        });
-                        setIsDeleted(true);
-                    } else {
-                        toast({
-                            title: 'Delete Failed',
-                            description: `${response.message} (Auth: ${comment.author}, Perm: ${comment.permlink})` || 'Unknown error',
-                            status: 'error',
-                            duration: 10000,
-                            isClosable: true,
-                        });
-                    }
+            if (result?.success) {
+                toast({
+                    title: 'Snap Deleted',
+                    status: 'success',
+                    duration: 3000,
+                });
+                setIsDeleted(true);
+            } else {
+                // Show error if available
+                const errorMsg = result?.error || 'Unknown error';
+                if (typeof errorMsg === 'string' && (errorMsg.includes('not found') || errorMsg.includes('missing') || errorMsg.includes('!comment_is_required'))) {
+                    toast({
+                        title: 'Snap Cleaned Up',
+                        description: 'Snap was already deleted or not found on chain. Removing from view.',
+                        status: 'info',
+                        duration: 3000,
+                    });
+                    setIsDeleted(true);
+                } else {
+                    toast({
+                        title: 'Delete Failed',
+                        description: errorMsg,
+                        status: 'error',
+                        duration: 10000,
+                        isClosable: true,
+                    });
                 }
-            );
+            }
         } catch (error: any) {
             console.error("Delete error:", error);
             toast({
