@@ -310,12 +310,12 @@ export default function SnapComposer({ pa, pp, onNewComment, post = false, onClo
                         <FaImage size={22} />
                         <ImageUploader onUpload={handleImageSelection} />
                     </Button>
-                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setGiphyModalOpen(!isGiphyModalOpen)} isDisabled={!user || isLoading || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
-                        <MdGif size={48} />
-                    </Button>
                     <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} as="label" variant="ghost" isDisabled={!user || isLoading || hasMedia || videoUploadProgress > 0 || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <FaVideo size={22} />
                         <VideoUploader onUpload={handleVideoSelection} />
+                    </Button>
+                    <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setGiphyModalOpen(!isGiphyModalOpen)} isDisabled={!user || isLoading || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
+                        <MdGif size={48} />
                     </Button>
                     <Button _hover={{ border: 'tb1' }} _active={{ border: 'tb1' }} variant="ghost" onClick={() => setAudioRecorderOpen(true)} isDisabled={!user || isLoading || hasMedia || hasVideo || hasAudio} size={{ base: 'sm', md: 'md' }}>
                         <FaMicrophone size={22} />
