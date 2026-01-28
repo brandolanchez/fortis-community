@@ -7,8 +7,7 @@ import { useState, useEffect } from 'react';
 import { Comment } from '@hiveio/dhive'; // Ensure this import is consistent
 import Conversation from '@/components/homepage/Conversation';
 import SnapReplyModal from '@/components/homepage/SnapReplyModal';
-import { useSnaps, SnapFilterType } from '@/hooks/useSnaps';
-import FeedTabFilter from '@/components/homepage/FeedTabFilter';
+import { useSnaps } from '@/hooks/useSnaps';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { getCommunityInfo } from '@/lib/hive/client-functions';
 
@@ -27,34 +26,10 @@ export default function Home() {
   const [reply, setReply] = useState<Comment>();
   const [isOpen, setIsOpen] = useState(false);
   const [newComment, setNewComment] = useState<Comment | null>(null); // Define the state
-  const [activeFilter, setActiveFilter] = useState<SnapFilterType>('community');
-  const [communityName, setCommunityName] = useState<string>('Community');
 
   const { user } = useKeychain();
 
-  useEffect(() => {
-    const loadCommunityInfo = async () => {
-      if (communityTag) {
-        try {
-          // Check sessionStorage first
-          const cachedData = sessionStorage.getItem('communityData');
-          if (cachedData) {
-            const communityData = JSON.parse(cachedData) as CommunityInfo;
-            setCommunityName(communityData.title);
-          } else {
-            // Fetch if not cached
-            const communityData = await getCommunityInfo(communityTag);
-            setCommunityName(communityData.title);
-            sessionStorage.setItem('communityData', JSON.stringify(communityData));
-          }
-        } catch (error) {
-          console.error('Failed to fetch community info', error);
-        }
-      }
-    };
 
-    loadCommunityInfo();
-  }, [communityTag]);
 
   const onOpen = () => setIsOpen(true);
   const onClose = () => setIsOpen(false);
@@ -63,13 +38,10 @@ export default function Home() {
     setNewComment(newComment as Comment);
   };
 
-  const handleFilterChange = (filter: SnapFilterType) => {
-    setActiveFilter(filter);
-    setConversation(undefined); // Close conversation view when changing filter
-  };
 
-  const snaps = useSnaps({ 
-    filterType: activeFilter, 
+
+  const snaps = useSnaps({
+    filterType: 'community',
     username: user || undefined
   });
 
@@ -93,12 +65,7 @@ export default function Home() {
           }
         }
         id='scrollableDiv'>
-        <FeedTabFilter 
-          activeFilter={activeFilter}
-          onFilterChange={handleFilterChange}
-          communityName={communityName}
-          isLoggedIn={!!user}
-        />
+
         {!conversation ? (
 
 
@@ -109,7 +76,7 @@ export default function Home() {
             onOpen={onOpen}
             setReply={setReply}
             newComment={newComment}
-            data={{...snaps, refresh: snaps.refresh}}
+            data={{ ...snaps, refresh: snaps.refresh }}
           />
         ) : (
           <Conversation comment={conversation} setConversation={setConversation} onOpen={onOpen} setReply={setReply} />
