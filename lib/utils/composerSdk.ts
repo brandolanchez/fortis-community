@@ -64,7 +64,7 @@ export {
  */
 export const snapieComposer = createComposer({
     appName: process.env.NEXT_PUBLIC_APP_NAME || 'snapie',
-    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps'].filter(Boolean),
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps', 'calisthenics', 'fortis'].filter(Boolean),
 });
 
 /**
@@ -72,7 +72,7 @@ export const snapieComposer = createComposer({
  */
 export const snapieVideoComposer = createComposer({
     appName: process.env.NEXT_PUBLIC_APP_NAME || 'snapie',
-    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps'].filter(Boolean),
+    defaultTags: [process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || 'hive-148971', 'snaps', 'calisthenics', 'fortis'].filter(Boolean),
     beneficiaries: [{ account: 'snapie', weight: 1000 }], // 10%
 });
 

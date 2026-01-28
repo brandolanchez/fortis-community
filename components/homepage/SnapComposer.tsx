@@ -14,10 +14,10 @@ import { getLastSnapsContainer, uploadImageWithKeychain, signAndBroadcastWithKey
 
 // SDK imports
 import { snapieComposer, snapieVideoComposer } from '@/lib/utils/composerSdk';
-import { 
-    uploadVideoTo3Speak, 
-    extractVideoThumbnail, 
-    uploadToIPFS, 
+import {
+    uploadVideoTo3Speak,
+    extractVideoThumbnail,
+    uploadToIPFS,
     set3SpeakThumbnail,
     extractVideoIdFromEmbedUrl
 } from '@snapie/operations/video';
@@ -39,7 +39,7 @@ interface SnapComposerProps {
     onClose: () => void;
 }
 
-export default function SnapComposer ({ pa, pp, onNewComment, post = false, onClose }: SnapComposerProps) {
+export default function SnapComposer({ pa, pp, onNewComment, post = false, onClose }: SnapComposerProps) {
     const { user } = useKeychain();
 
     const postBodyRef = useRef<HTMLTextAreaElement>(null);
@@ -58,7 +58,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
     const hasMedia = uploadingImages.length > 0 || selectedGif !== null;
     const hasVideo = selectedVideo !== null;
     const hasAudio = audioEmbedUrl !== null;
-    
+
     // Check if any images are still uploading
     const imagesStillUploading = uploadingImages.some(img => img.uploadedUrl === null && !img.error);
     const isDisabled = !user || isLoading || imagesStillUploading;
@@ -68,7 +68,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
         setSelectedVideo(file);
         setVideoUploadProgress(1);
         setThumbnailProcessing(true);
-        
+
         const apiKey = process.env.NEXT_PUBLIC_3SPEAK_API_KEY || '';
         if (!apiKey) {
             alert('3Speak API key not configured');
@@ -79,14 +79,21 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
         }
 
         console.log('🎬 Starting video upload for:', file.name);
-        
+
         try {
+            const community = process.env.NEXT_PUBLIC_HIVE_COMMUNITY_TAG || '';
+            const bodyText = postBodyRef.current?.value || '';
+            const videoTitle = bodyText.slice(0, 50).trim() || file.name;
+
             // Upload video and extract thumbnail in parallel using SDK
             const [videoResult, thumbnailBlob] = await Promise.allSettled([
                 uploadVideoTo3Speak(file, {
                     apiKey,
                     owner: user || '',
-                    appName: 'snapie',
+                    appName: process.env.NEXT_PUBLIC_APP_NAME || 'snapie',
+                    community: community,
+                    title: videoTitle,
+                    tags: [community, 'snaps', 'calisthenics', 'fortis'].filter(Boolean),
                     onProgress: (progress) => setVideoUploadProgress(progress)
                 }),
                 extractVideoThumbnail(file).catch(() => null)
@@ -95,7 +102,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
             if (videoResult.status === 'fulfilled') {
                 setVideoEmbedUrl(videoResult.value.embedUrl);
                 console.log('✅ Video uploaded:', videoResult.value.embedUrl);
-                
+
                 // Try to upload and set thumbnail
                 if (thumbnailBlob.status === 'fulfilled' && thumbnailBlob.value && user) {
                     try {
@@ -107,7 +114,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                         } catch {
                             thumbnailUrl = await uploadToIPFS(thumbnailBlob.value);
                         }
-                        
+
                         // Set thumbnail via 3Speak API
                         if (videoResult.value.videoId) {
                             await set3SpeakThumbnail(videoResult.value.videoId, thumbnailUrl, apiKey);
@@ -150,33 +157,33 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
 
         // Start uploads for each file
         const startIndex = uploadingImages.length;
-        
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const imageIndex = startIndex + i;
-            
+
             try {
                 console.log(`📷 Starting upload for image ${i + 1}:`, file.name);
-                
+
                 const url = await uploadImageWithKeychain(file, user, {
                     onProgress: (progress) => {
-                        setUploadingImages(prev => prev.map((img, idx) => 
+                        setUploadingImages(prev => prev.map((img, idx) =>
                             idx === imageIndex ? { ...img, progress } : img
                         ));
                     }
                 });
-                
+
                 console.log(`✅ Image ${i + 1} uploaded:`, url);
-                
+
                 // Update with uploaded URL
-                setUploadingImages(prev => prev.map((img, idx) => 
+                setUploadingImages(prev => prev.map((img, idx) =>
                     idx === imageIndex ? { ...img, uploadedUrl: url, progress: 100 } : img
                 ));
             } catch (error) {
                 console.error(`❌ Error uploading image ${i + 1}:`, error);
-                
+
                 // Mark as failed
-                setUploadingImages(prev => prev.map((img, idx) => 
+                setUploadingImages(prev => prev.map((img, idx) =>
                     idx === imageIndex ? { ...img, error: error instanceof Error ? error.message : 'Upload failed', progress: 0 } : img
                 ));
             }
@@ -199,7 +206,7 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
             alert('You must be logged in to post.');
             return;
         }
-        
+
         let bodyText = postBodyRef.current?.value || '';
 
         if (!bodyText.trim() && uploadingImages.length === 0 && !selectedGif && !selectedVideo && !audioEmbedUrl) {
@@ -217,13 +224,13 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
 
             // Resolve parent permlink for snaps
             let parentPermlink = pp;
-            if (pp === "snaps") { 
+            if (pp === "snaps") {
                 parentPermlink = (await getLastSnapsContainer()).permlink;
             }
 
             // Use the appropriate composer (with or without beneficiaries)
             const composer = videoEmbedUrl ? snapieVideoComposer : snapieComposer;
-            
+
             // Build operations using SDK
             const result = composer.build({
                 author: user,
@@ -242,13 +249,13 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 result.operations,
                 'posting'
             );
-            
+
             if (commentResponse.success) {
                 // Cleanup preview URLs
                 uploadingImages.forEach(img => {
                     if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
                 });
-                
+
                 // Reset form
                 postBodyRef.current!.value = '';
                 setUploadingImages([]);
@@ -260,12 +267,12 @@ export default function SnapComposer ({ pa, pp, onNewComment, post = false, onCl
                 setAudioEmbedUrl(null);
 
                 const newComment: Partial<Comment> = {
-                    author: user, 
+                    author: user,
                     permlink: result.permlink,
                     body: result.body,
                 };
 
-                onNewComment(newComment); 
+                onNewComment(newComment);
                 onClose();
             } else {
                 alert('Failed to post. Please try again.');

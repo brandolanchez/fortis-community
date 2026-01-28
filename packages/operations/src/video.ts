@@ -22,7 +22,7 @@
  * Video upload progress callback
  */
 export type VideoProgressCallback = (
-    progress: number, 
+    progress: number,
     status: 'uploading' | 'processing' | 'complete' | 'error'
 ) => void;
 
@@ -46,6 +46,14 @@ export interface VideoUploadOptions {
     owner: string;
     /** App name for metadata (default: "snapie") */
     appName?: string;
+    /** Title for the video */
+    title?: string;
+    /** Description for the video */
+    description?: string;
+    /** Tags for the video (comma-separated or array) */
+    tags?: string | string[];
+    /** Community Hive account (e.g., "hive-148971") */
+    community?: string;
     /** Progress callback */
     onProgress?: VideoProgressCallback;
 }
@@ -63,10 +71,10 @@ export async function uploadVideoTo3Speak(
 ): Promise<VideoUploadResult> {
     // Dynamic import to avoid bundling tus-js-client when not needed
     const tus = await import('tus-js-client');
-    
+
     return new Promise((resolve, reject) => {
         let embedUrl: string | null = null;
-        
+
         const upload = new tus.Upload(file, {
             endpoint: 'https://embed.3speak.tv/uploads',
             chunkSize: 10 * 1024 * 1024, // 10MB chunks for reliable large file uploads
@@ -75,7 +83,11 @@ export async function uploadVideoTo3Speak(
                 filename: file.name,
                 owner: options.owner,
                 frontend_app: options.appName ?? 'snapie',
-                short: 'true'
+                short: 'true',
+                title: options.title ?? file.name,
+                description: options.description ?? '',
+                tags: Array.isArray(options.tags) ? options.tags.join(',') : (options.tags ?? ''),
+                community: options.community ?? ''
             },
             headers: {
                 'X-API-Key': options.apiKey
@@ -108,7 +120,7 @@ export async function uploadVideoTo3Speak(
                 }
             }
         });
-        
+
         upload.start();
     });
 }
@@ -154,7 +166,7 @@ export async function set3SpeakThumbnail(
         },
         body: JSON.stringify({ thumbnail_url: thumbnailUrl })
     });
-    
+
     if (!response.ok) {
         throw new Error(`Failed to set thumbnail: ${response.status} - ${response.statusText}`);
     }
@@ -174,28 +186,28 @@ export async function extractVideoThumbnail(
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
         const video = document.createElement('video');
-        
+
         video.src = url;
         video.crossOrigin = 'anonymous';
         video.muted = true;
-        
+
         video.addEventListener('loadeddata', () => {
             video.currentTime = seekTime;
         });
-        
+
         video.addEventListener('seeked', () => {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            
+
             const ctx = canvas.getContext('2d');
             if (!ctx) {
                 reject(new Error('Failed to get canvas context'));
                 return;
             }
-            
+
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
+
             canvas.toBlob(
                 (blob) => {
                     URL.revokeObjectURL(url);
@@ -209,12 +221,12 @@ export async function extractVideoThumbnail(
                 0.9
             );
         });
-        
+
         video.addEventListener('error', () => {
             URL.revokeObjectURL(url);
             reject(new Error('Failed to load video'));
         });
-        
+
         video.load();
     });
 }
@@ -232,21 +244,21 @@ export async function uploadToIPFS(
 ): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch(endpoint, {
         method: 'POST',
         body: formData
     });
-    
+
     if (!response.ok) {
         throw new Error(`IPFS upload failed: ${response.status} - ${response.statusText}`);
     }
-    
+
     const responseText = await response.text();
     const lines = responseText.trim().split('\n');
     const lastLine = lines[lines.length - 1];
     const result = JSON.parse(lastLine);
-    
+
     return `https://ipfs.3speak.tv/ipfs/${result.Hash}`;
 }
 
@@ -259,7 +271,7 @@ export async function uploadToIPFS(
  */
 export async function uploadVideoWithThumbnail(
     file: File,
-    options: VideoUploadOptions & { 
+    options: VideoUploadOptions & {
         /** Custom thumbnail upload function */
         uploadThumbnail?: (blob: Blob) => Promise<string>;
     }
@@ -269,16 +281,16 @@ export async function uploadVideoWithThumbnail(
         uploadVideoTo3Speak(file, options),
         extractVideoThumbnail(file).catch(() => null)
     ]);
-    
+
     let thumbnailUrl: string | undefined;
-    
+
     if (thumbnailBlob) {
         try {
             // Upload thumbnail
-            thumbnailUrl = options.uploadThumbnail 
+            thumbnailUrl = options.uploadThumbnail
                 ? await options.uploadThumbnail(thumbnailBlob)
                 : await uploadToIPFS(thumbnailBlob);
-            
+
             // Set it on 3Speak
             if (videoResult.videoId) {
                 await set3SpeakThumbnail(videoResult.videoId, thumbnailUrl, options.apiKey);
@@ -287,7 +299,7 @@ export async function uploadVideoWithThumbnail(
             console.warn('Thumbnail processing failed (video still works):', error);
         }
     }
-    
+
     return {
         ...videoResult,
         thumbnailUrl

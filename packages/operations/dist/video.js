@@ -51,7 +51,11 @@ async function uploadVideoTo3Speak(file, options) {
         filename: file.name,
         owner: options.owner,
         frontend_app: options.appName ?? "snapie",
-        short: "true"
+        short: "true",
+        title: options.title ?? file.name,
+        description: options.description ?? "",
+        tags: Array.isArray(options.tags) ? options.tags.join(",") : options.tags ?? "",
+        community: options.community ?? ""
       },
       headers: {
         "X-API-Key": options.apiKey

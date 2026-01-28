@@ -40,6 +40,14 @@ interface VideoUploadOptions {
     owner: string;
     /** App name for metadata (default: "snapie") */
     appName?: string;
+    /** Title for the video */
+    title?: string;
+    /** Description for the video */
+    description?: string;
+    /** Tags for the video (comma-separated or array) */
+    tags?: string | string[];
+    /** Community Hive account (e.g., "hive-148971") */
+    community?: string;
     /** Progress callback */
     onProgress?: VideoProgressCallback;
 }

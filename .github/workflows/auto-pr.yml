@@ -1,0 +1,34 @@
+name: Auto PR on Fix Branches
+
+on:
+  push:
+    branches:
+      - 'fix/**'
+
+jobs:
+  build-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint (best effort)
+        run: npm run lint || true
+      - name: Build
+        run: npm run build
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Auto PR from ${{ github.head_ref }}"
+          body: |
+            This PR was automatically generated from a fix/ or feature/ branch.
+          base: main
+          head: ${{ github.head_ref }}
+          draft: false
+          labels: auto-pr
