@@ -11,10 +11,10 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onUpload }) => {
     const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            // Validate file size (100MB max)
-            const maxSize = 100 * 1024 * 1024; // 100MB in bytes
+            // Validate file size (500MB max)
+            const maxSize = 500 * 1024 * 1024; // 500MB in bytes
             if (file.size > maxSize) {
-                alert('Video file is too large. Maximum size is 100MB.');
+                alert('Video file is too large. Maximum size is 500MB.');
                 return;
             }
 
