@@ -10,14 +10,23 @@ export interface MediaItem {
  * Add noscroll parameter to 3Speak URLs to prevent scrollbars in iframe
  */
 function fix3SpeakUrl(url: string): string {
-  if (!url.includes('play.3speak.tv/embed')) return url;
-  
+  if (!url.includes('play.3speak.tv/embed') && !url.includes('play.3speak.tv/watch')) return url;
+
   try {
     const urlObj = new URL(url);
     urlObj.searchParams.set('noscroll', '1');
+    // Use mobile layout by default for snaps as it handles both vertical and horizontal content better
+    if (!urlObj.searchParams.has('layout')) {
+      urlObj.searchParams.set('layout', 'mobile');
+    }
     return urlObj.toString();
   } catch {
-    return url + (url.includes('?') ? '&' : '?') + 'noscroll=1';
+    const separator = url.includes('?') ? '&' : '?';
+    let newUrl = url + separator + 'noscroll=1';
+    if (!url.includes('layout=')) {
+      newUrl += '&layout=mobile';
+    }
+    return newUrl;
   }
 }
 
@@ -30,14 +39,14 @@ function extractYouTubeId(url: string): string | null {
     /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match && match[1]) {
       return match[1];
     }
   }
-  
+
   return null;
 }
 
@@ -57,14 +66,14 @@ function extractInstagramId(url: string): string | null {
     /instagram\.com\/reel\/([A-Za-z0-9_-]+)/,
     /instagram\.com\/tv\/([A-Za-z0-9_-]+)/
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match && match[1]) {
       return match[1];
     }
   }
-  
+
   return null;
 }
 
@@ -75,14 +84,14 @@ function extractTwitterId(url: string): string | null {
   const patterns = [
     /(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/,
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match && match[1]) {
       return match[1];
     }
   }
-  
+
   return null;
 }
 
@@ -95,16 +104,16 @@ export const separateContent = (body: string) => {
   const textParts: string[] = [];
   const mediaParts: string[] = [];
   const lines = body.split("\n");
-  
+
   lines.forEach((line: string) => {
     // Check if line contains markdown image, iframe, 3Speak URLs (watch or embed), YouTube URL, Instagram URL, Twitter/X URL, or 3Speak Audio URL
-    if (line.match(/!\[.*?\]\(.*\)/) || 
-        line.match(/<iframe.*<\/iframe>/) ||
-        line.match(/https?:\/\/play\.3speak\.tv\/(watch|embed)\?v=/) ||
-        line.match(/https?:\/\/audio\.3speak\.tv\/play\?a=/) ||
-        line.match(/https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/) ||
-        line.match(/https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\//) ||
-        line.match(/https?:\/\/(twitter\.com|x\.com)\/[^/]+\/status\/\d+/)) {
+    if (line.match(/!\[.*?\]\(.*\)/) ||
+      line.match(/<iframe.*<\/iframe>/) ||
+      line.match(/https?:\/\/play\.3speak\.tv\/(watch|embed)\?v=/) ||
+      line.match(/https?:\/\/audio\.3speak\.tv\/play\?a=/) ||
+      line.match(/https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/) ||
+      line.match(/https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\//) ||
+      line.match(/https?:\/\/(twitter\.com|x\.com)\/[^/]+\/status\/\d+/)) {
       mediaParts.push(line);
     } else {
       textParts.push(line);
@@ -119,20 +128,20 @@ export const separateContent = (body: string) => {
  */
 const removeLastUrlFromContent = (content: string): string => {
   const lastUrl = extractLastUrl(content);
-  
+
   if (!lastUrl) {
     return content;
   }
-  
+
   // Find the position of the last URL
   const urlPosition = content.lastIndexOf(lastUrl);
   const afterUrl = content.substring(urlPosition + lastUrl.length).trim();
-  
+
   // Only remove if it's at the end with minimal trailing content
   if (afterUrl === '' || afterUrl.match(/^[\s\n.!?]*$/)) {
     return content.substring(0, urlPosition).trim();
   }
-  
+
   return content;
 };
 
@@ -152,28 +161,28 @@ export const extractHivePostUrls = (content: string): Array<{ url: string; autho
     'busy.org',
     'snapie.io'
   ];
-  
+
   const results: Array<{ url: string; author: string; permlink: string }> = [];
-  
+
   // Create pattern for all frontends
   const frontendsPattern = hiveFrontends.map(domain => domain.replace('.', '\\.')).join('|');
-  
+
   // Match Hive post URLs: https://frontend.com/category/@author/permlink or https://frontend.com/@author/permlink
   // Also handles www. subdomain
   const hiveUrlRegex = new RegExp(
     `https?:\\/\\/(?:www\\.)?(${frontendsPattern})\\/((?:[^/\\s]+\\/)?@([a-z0-9.-]+)\\/([a-z0-9-]+))`,
     'gi'
   );
-  
+
   let match;
   while ((match = hiveUrlRegex.exec(content)) !== null) {
     const url = match[0];
     const author = match[3];
     const permlink = match[4];
-    
+
     results.push({ url, author, permlink });
   }
-  
+
   return results;
 };
 
@@ -184,12 +193,12 @@ export const extractLastUrl = (content: string): string | null => {
   const urlRegex = /https?:\/\/[^\s<>"'`]+/g;
   const urls: string[] = [];
   let match;
-  
+
   while ((match = urlRegex.exec(content)) !== null) {
     let url = match[0];
     // Remove trailing ) if present (from markdown syntax)
     url = url.replace(/\)+$/, '');
-    
+
     // Skip if it's already handled by other systems
     if (
       // Skip image URLs
@@ -212,10 +221,10 @@ export const extractLastUrl = (content: string): string | null => {
     ) {
       continue;
     }
-    
+
     urls.push(url);
   }
-  
+
   return urls.length > 0 ? urls[urls.length - 1] : null;
 };
 
@@ -233,7 +242,7 @@ const isVideoUrl = (url: string): boolean => {
  */
 const isIpfsUrl = (url: string): boolean => {
   return (
-    url.includes('/ipfs/') || 
+    url.includes('/ipfs/') ||
     url.includes('ipfs.') ||
     url.includes('.ipfs.') ||
     url.startsWith('ipfs://')
@@ -247,7 +256,7 @@ const convertToSkatehiveGateway = (url: string): string => {
   // Extract IPFS hash (bafy... or Qm...)
   const ipfsHashMatch = url.match(/(bafy[0-9a-z]{50,}|Qm[1-9A-HJ-NP-Za-km-z]{44,})/);
   const hash = ipfsHashMatch ? ipfsHashMatch[1] : null;
-  
+
   return hash ? `https://ipfs.skatehive.app/ipfs/${hash}` : url;
 };
 
@@ -309,9 +318,11 @@ export const parseMediaContent = (mediaContent: string): MediaItem[] => {
         if (!watchUrl.includes('mode=iframe')) {
           watchUrl += '&mode=iframe';
         }
+        // Add noscroll and layout parameters
+        watchUrl = fix3SpeakUrl(watchUrl);
         mediaItems.push({
           type: "iframe",
-          content: `<iframe src="${watchUrl}" width="100%" style="aspect-ratio: 16/9;" frameborder="0" allowfullscreen></iframe>`,
+          content: `<iframe src="${watchUrl}" width="100%" style="aspect-ratio: 3/4; max-height: 70vh;" frameborder="0" allowfullscreen></iframe>`,
           src: watchUrl,
         });
         return;
@@ -329,9 +340,11 @@ export const parseMediaContent = (mediaContent: string): MediaItem[] => {
         }
         // Add noscroll parameter to prevent scrollbars
         embedUrl = fix3SpeakUrl(embedUrl);
+        // Add mode=iframe, noscroll and layout parameters
+        embedUrl = fix3SpeakUrl(embedUrl);
         mediaItems.push({
           type: "iframe",
-          content: `<iframe src="${embedUrl}" width="100%" style="aspect-ratio: 16/9;" frameborder="0" allowfullscreen></iframe>`,
+          content: `<iframe src="${embedUrl}" width="100%" style="aspect-ratio: 3/4; max-height: 70vh;" frameborder="0" allowfullscreen></iframe>`,
           src: embedUrl,
         });
         return;
@@ -366,16 +379,16 @@ export const parseMediaContent = (mediaContent: string): MediaItem[] => {
       // Extract ALL image markdown patterns from the line (there might be multiple or text before/after)
       const imageRegex = /!\[.*?\]\((https?:\/\/[^)]+)\)/g;
       let match;
-      
+
       while ((match = imageRegex.exec(trimmedItem)) !== null) {
         const url = match[1];
         const fullMatch = match[0]; // The complete ![...](url) pattern
-        
+
         // Check if it's an IPFS URL
         if (isIpfsUrl(url)) {
           // Convert to skatehive gateway for consistency
           const skatehiveUrl = convertToSkatehiveGateway(url);
-          
+
           // Check if it's a video based on URL or assume video for IPFS without clear extension
           if (isVideoUrl(url)) {
             mediaItems.push({
@@ -436,12 +449,12 @@ export const parseMediaContent = (mediaContent: string): MediaItem[] => {
       const srcMatch = trimmedItem.match(/src=["']([^"']+)["']/i);
       if (srcMatch && srcMatch[1]) {
         let url = srcMatch[1];
-        
+
         // Add mode=iframe to 3Speak URLs if not present
         if (url.includes('play.3speak.tv/embed?v=') && !url.includes('mode=iframe')) {
           url += '&mode=iframe';
         }
-        
+
         // Add noscroll parameter to 3Speak URLs
         if (url.includes('play.3speak.tv/embed')) {
           url = fix3SpeakUrl(url);

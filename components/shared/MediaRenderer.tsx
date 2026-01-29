@@ -35,7 +35,7 @@ const MediaRenderer = ({ mediaContent }: MediaRendererProps) => {
           // Extract URL from markdown syntax
           const urlMatch = item.content.match(/!\[.*?\]\((.*?)\)/);
           const imageUrl = urlMatch ? urlMatch[1] : null;
-          
+
           if (imageUrl) {
             return (
               <Box key={index} mb={2}>
@@ -64,7 +64,7 @@ const MediaRenderer = ({ mediaContent }: MediaRendererProps) => {
             /<iframe/i,
             '<iframe loading="lazy"'
           );
-          
+
           // Sanitize iframe content to prevent XSS attacks
           const sanitizedIframe = DOMPurify.sanitize(lazyIframeContent, {
             ALLOWED_TAGS: ['iframe', 'div'],
@@ -72,19 +72,21 @@ const MediaRenderer = ({ mediaContent }: MediaRendererProps) => {
             ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?):\/\/(?:www\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com|odysee\.com|rumble\.com|vimeo\.com|dailymotion\.com|ipfs\.skatehive\.app|ipfs\.io|play\.3speak\.tv|embed\.3speak\.tv|audio\.3speak\.tv|instagram\.com|platform\.twitter\.com|twitter\.com|x\.com))/i,
             ADD_ATTR: ['loading', 'scrolling', 'allowtransparency'],
           });
-          
+
           // Check if this is an audio player (don't apply 16/9 aspect ratio)
           const isAudioPlayer = item.src.includes('audio.3speak.tv');
-          
+
           return (
-            <Box 
-              key={index} 
+            <Box
+              key={index}
               mb={2}
               dangerouslySetInnerHTML={{ __html: sanitizedIframe }}
               sx={{
                 iframe: {
                   width: "100%",
-                  ...(isAudioPlayer ? {} : { aspectRatio: "16/9" }),
+                  ...(isAudioPlayer ? {} : {
+                    aspectRatio: item.src.includes('3speak.tv') ? "auto" : "16/9"
+                  }),
                   borderRadius: "md",
                   border: "none",
                   overflow: "hidden",
