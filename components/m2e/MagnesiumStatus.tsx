@@ -22,7 +22,17 @@ import { FaBolt, FaPlus, FaCrown } from 'react-icons/fa'; // Removed FaChevronDo
  * Provides a visual representation of 3D chalk blocks.
  */
 const MagnesiumStatus = () => {
-    const { magnesium, reloadMagnesium, isReloading, isLoading, tier, stakeAmount, simulateStake } = useFortisM2E();
+    const {
+        magnesium,
+        reloadMagnesium,
+        isReloading,
+        isLoading,
+        tier,
+        stakeAmount,
+        simulateStake,
+        claimAirdropFaucet,
+        hasClaimedFaucet
+    } = useFortisM2E();
 
     const bg = useColorModeValue('muted', 'muted');
     const borderColor = useColorModeValue('primary', 'primary');
@@ -55,7 +65,8 @@ const MagnesiumStatus = () => {
         const blockColors: Record<MagnesiumType, string> = {
             gold: '#FFD700',
             aged: '#F5F5DC',
-            standard: '#FFFFFF'
+            standard: '#FFFFFF',
+            airdrop: '#FF8C00' // Dark Orange
         };
         const color = blockColors[type];
 
@@ -94,17 +105,20 @@ const MagnesiumStatus = () => {
                     />
                 </VStack>
 
-                <Tooltip label={`Recargar 10 unidades por ${cost} HBD`} hasArrow>
+                <Tooltip label={type === 'airdrop' ? `Recargar 1 unidad por 20 FORTIS` : `Recargar 5 unidades por ${cost} HBD`} hasArrow>
                     <Button
                         size="xs"
                         variant="solid"
                         colorScheme="primary"
                         w="100%"
-                        onClick={() => reloadMagnesium(type)}
+                        leftIcon={<Icon as={FaPlus} />}
+                        onClick={() => (reloadMagnesium as any)(type)}
                         isLoading={isReloading}
                         fontSize="9px"
+                        fontWeight="black"
+                        _hover={{ transform: 'scale(1.05)' }}
                     >
-                        RECARGAR (+10)
+                        {type === 'airdrop' ? '+1 BLOQUE' : '+5 BLOQUES'}
                     </Button>
                 </Tooltip>
             </VStack>
@@ -151,10 +165,33 @@ const MagnesiumStatus = () => {
                     <MagnesiumItem type="standard" label="MAGNESIO ESENCIAL (1 HBD)" cost="1" />
                     <MagnesiumItem type="aged" label="AGARRE MAESTRO (3 HBD)" cost="3" />
                     <MagnesiumItem type="gold" label="FRICCIÓN DIVINA (5 HBD)" cost="5" />
+                    <MagnesiumItem type="airdrop" label="AIRDROP TEST (20 FORTIS)" cost="20" />
                 </HStack>
             </Box>
 
-            <HStack w="100%" justify="center">
+            <VStack w="100%" spacing={3} pt={2}>
+                <Button
+                    size="sm"
+                    w="100%"
+                    bgGradient={hasClaimedFaucet ? "linear(to-r, gray.600, gray.700)" : "linear(to-r, orange.400, primary)"}
+                    color="white"
+                    leftIcon={<Icon as={hasClaimedFaucet ? FaCrown : FaBolt} />}
+                    onClick={() => !hasClaimedFaucet && (claimAirdropFaucet as any)()}
+                    isDisabled={hasClaimedFaucet}
+                    _hover={{
+                        opacity: 0.9,
+                        transform: hasClaimedFaucet ? 'none' : 'scale(1.02)',
+                        boxShadow: hasClaimedFaucet ? 'none' : '0 0 20px rgba(217, 148, 20, 0.4)'
+                    }}
+                    boxShadow={hasClaimedFaucet ? "none" : "0 4px 15px rgba(0,0,0,0.3)"}
+                    transition="all 0.2s"
+                    fontWeight="black"
+                    letterSpacing="wider"
+                    textShadow="0 1px 2px rgba(0,0,0,0.3)"
+                >
+                    {hasClaimedFaucet ? "AIRDROP RECLAMADO ✓" : "RECLAMAR 20 FORTIS (AIRDROP FAUCET)"}
+                </Button>
+
                 <Button
                     size="xs"
                     variant="link"
@@ -165,7 +202,7 @@ const MagnesiumStatus = () => {
                 >
                     [DEV] SIMULAR +500 STAKE
                 </Button>
-            </HStack>
+            </VStack>
         </VStack>
     );
 };

@@ -17,9 +17,11 @@ import {
     AvatarGroup,
     Collapse,
     IconButton,
+    Image,
 } from '@chakra-ui/react';
-import { FaTrophy, FaClock, FaUsers, FaChevronDown, FaChevronUp, FaCoins } from 'react-icons/fa';
+import { FaTrophy, FaClock, FaUsers, FaChevronDown, FaChevronUp, FaCoins, FaMedal } from 'react-icons/fa';
 import { useFortisM2E, Challenge, MagnesiumType } from '@/hooks/useFortisM2E';
+import markdownRenderer from '@/lib/utils/MarkdownRenderer';
 import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
 
 /**
@@ -27,52 +29,25 @@ import { getHiveAvatarUrl } from '@/lib/utils/avatarUtils';
  * In a production environment, this would be fetched from the Hive blockchain.
  */
 const MOCK_PARTICIPANTS = [
-    'brandolanchez', 'hive-calisthenics', 'peak.snaps', 'lordbutterfly', 'theycallmedan',
+    'hecatonquirox', 'hive-calisthenics', 'peak.snaps', 'lordbutterfly', 'theycallmedan',
     'ennead', 'threespeak', 'ocd', 'ecency', 'blocktrades'
 ];
 
 /**
  * Configuration for Magnesium types to maintain consistency across the UI.
  */
-const MAGNESIO_CONFIG: Record<MagnesiumType, { label: string, color: string }> = {
-    standard: { label: 'MAGNESIO ESENCIAL', color: 'gray' },
-    aged: { label: 'AGARRE MAESTRO', color: 'orange' },
-    gold: { label: 'FRICCIÓN DIVINA', color: 'yellow' }
+const MAGNESIO_CONFIG: Record<MagnesiumType, { label: string, color: string, priceHBD: number, rewardFORTIS: number }> = {
+    standard: { label: 'MAGNESIO ESENCIAL', color: 'gray', priceHBD: 1, rewardFORTIS: 10 },
+    aged: { label: 'AGARRE MAESTRO', color: 'orange', priceHBD: 3, rewardFORTIS: 30 },
+    gold: { label: 'FRICCIÓN DIVINA', color: 'yellow', priceHBD: 5, rewardFORTIS: 50 },
+    airdrop: { label: 'MAGNESIO DE PRUEBA', color: 'orange', priceHBD: 0, rewardFORTIS: 100 } // Price in FORTIS handled in hook
 };
 
 /**
  * Initial pool of challenges. 
  * Rewards are balanced based on the $0.03/FORTIS target to ensure economic sustainability.
  */
-const INITIAL_CHALLENGES: Challenge[] = [
-    {
-        id: '1',
-        title: 'Muscle-Up Master',
-        description: 'Realiza 30 Muscle-ups en menos de 10 minutos. Sube tu video a 3Speak para validar.',
-        magnesiumCost: 1,
-        magnesiumType: 'standard',
-        participantRewardFORTIS: '10 FORTIS',
-        status: 'available'
-    },
-    {
-        id: '2',
-        title: 'Caracas Beast Mode: Evento Presencial',
-        description: 'Competencia presencial en el parque. La inscripción requiere Agarre Maestro.',
-        magnesiumCost: 1,
-        magnesiumType: 'aged',
-        participantRewardFORTIS: '30 FORTIS',
-        status: 'available'
-    },
-    {
-        id: '3',
-        title: 'Elite Pull-up Marathon: Pool de Oro',
-        description: 'El reto definitivo para los Atletas de Fricción Divina. Pool de premios masivo en HBD.',
-        magnesiumCost: 1,
-        magnesiumType: 'gold',
-        participantRewardFORTIS: '50 FORTIS',
-        status: 'available'
-    }
-];
+const INITIAL_CHALLENGES: Challenge[] = [];
 
 /**
  * CountdownTimer Component
@@ -111,25 +86,58 @@ const CountdownTimer = ({ expiryDate }: { expiryDate: Date }) => {
 };
 
 /**
+ * Leaderboard Component
+ * Displays the top athletes for a completed/scored challenge.
+ */
+const Leaderboard = ({ ranking }: { ranking: { account: string, score: number, rank: number }[] }) => {
+    return (
+        <Box p={4} bg="blackAlpha.400" borderRadius="xl" border="1px solid" borderColor="whiteAlpha.100" w="100%">
+            <HStack mb={4} justify="center">
+                <Icon as={FaTrophy} color="yellow.400" />
+                <Heading size="xs" letterSpacing="widest">TABLA DE LÍDERES</Heading>
+            </HStack>
+            <VStack spacing={3} align="stretch">
+                {ranking.slice(0, 3).map((r, idx) => (
+                    <HStack key={r.account} justify="space-between" p={2} bg={idx === 0 ? "whiteAlpha.100" : "transparent"} borderRadius="md">
+                        <HStack spacing={3}>
+                            <Text fontWeight="black" color={idx === 0 ? "yellow.400" : idx === 1 ? "gray.300" : "orange.400"}>#{r.rank}</Text>
+                            <Avatar size="xs" src={getHiveAvatarUrl(r.account)} name={r.account} />
+                            <Text fontSize="xs" fontWeight="bold">@{r.account}</Text>
+                        </HStack>
+                        <Badge colorScheme="primary" variant="subtle" fontSize="9px">{r.score} PTS</Badge>
+                    </HStack>
+                ))}
+            </VStack>
+        </Box>
+    );
+};
+
+/**
  * ChallengeCard Component
  * Displays individual challenge details, dynamic prize pools, and social participation.
  * 
  * @param challenge - The challenge data object
  * @param onJoin - Callback for the join operation
  * @param isJoined - Boolean flag if the current user has already entered the pool
+ * @param ranking - Optional ranking data for the challenge
  */
-const ChallengeCard = ({ challenge, onJoin, isJoined }: { challenge: Challenge, onJoin: (c: Challenge) => void, isJoined: boolean }) => {
+const ChallengeCard = ({ challenge, onJoin, isJoined, ranking }: { challenge: Challenge, onJoin: (c: Challenge) => void, isJoined: boolean, ranking?: any[] }) => {
     const { costMultiplier } = useFortisM2E();
     const [showParticipants, setShowParticipants] = useState(false);
 
+    const config = MAGNESIO_CONFIG[challenge.magnesiumType || 'standard'];
+
     // DYNAMIC PRIZE CALCULATION:
-    // This simulates a real-time pool where 20% of all entry fees (0.20 HBD each) 
+    // This simulates a real-time pool where 20% of all entry fees
     // are distributed among the Top 3 winners.
-    const entryValueHBD = 0.20;
+    const entryValueHBD = config.priceHBD;
     const simulatedParticipants = 12 + (challenge.id === '3' ? 45 : challenge.id === '2' ? 28 : 10);
     const poolAmount = (simulatedParticipants * entryValueHBD * 0.20).toFixed(2);
 
-    const config = MAGNESIO_CONFIG[challenge.magnesiumType || 'standard'];
+    // Dynamic Expiry Calculation
+    const startDate = challenge.timestamp ? new Date(challenge.timestamp) : new Date();
+    const duration = challenge.durationDays || 7;
+    const expiryDate = new Date(startDate.getTime() + duration * 24 * 60 * 60 * 1000);
 
     return (
         <Box
@@ -165,24 +173,52 @@ const ChallengeCard = ({ challenge, onJoin, isJoined }: { challenge: Challenge, 
                         <Badge fontSize="10px" colorScheme={config.color}>
                             COSTO: 1 USO ({entryValueHBD} HBD)
                         </Badge>
-                        {/* Pool Expiry: 7-day duration simulation */}
-                        <CountdownTimer expiryDate={new Date(Date.now() + 1000 * 60 * 60 * 24 * 6 + 1000 * 3600 * 4)} />
+                        <CountdownTimer expiryDate={expiryDate} />
                     </HStack>
                 </VStack>
 
-                <Text fontSize="sm" color="gray.400" minH="50px">
-                    {challenge.description}
-                </Text>
+                <Box
+                    fontSize="sm"
+                    color="gray.400"
+                    dangerouslySetInnerHTML={{ __html: markdownRenderer(challenge.description) }}
+                    sx={{
+                        '& ul, & ol': {
+                            marginLeft: '0px',
+                            marginTop: '0.8em',
+                            marginBottom: '0.8em',
+                            columnCount: { base: 2, md: 3 },
+                            columnGap: '10px',
+                            columnRule: '1px solid rgba(255,255,255,0.05)',
+                            listStylePosition: 'inside',
+                        },
+                        '& li': {
+                            fontSize: '11px',
+                            lineHeight: '1.1',
+                            marginBottom: '4px',
+                            breakInside: 'avoid-column',
+                        },
+                        '& p': {
+                            marginBottom: '0.4em',
+                            fontSize: '13px',
+                        }
+                    }}
+                />
 
                 <Divider borderColor="rgba(255,255,255,0.1)" />
 
                 <SimpleGrid columns={2} w="100%" spacing={2}>
                     <VStack align="flex-start" spacing={0} p={2} bg="rgba(0,0,0,0.2)" borderRadius="md">
-                        <Text fontSize="9px" color="gray.500" fontWeight="bold">RECOMPENSA</Text>
+                        <HStack justify="space-between" w="100%">
+                            <Text fontSize="9px" color="gray.500" fontWeight="bold">RECOMPENSA</Text>
+                            <Image src="https://lrclcispixleskrskkjw.supabase.co/storage/v1/object/public/imagenes/tokenlogo.jpg" boxSize="12px" borderRadius="full" alt="Fortis" />
+                        </HStack>
                         <Text fontSize="xs" color="green.300" fontWeight="black">{challenge.participantRewardFORTIS}</Text>
                     </VStack>
                     <VStack align="flex-start" spacing={0} p={2} bg="rgba(0,0,0,0.2)" borderRadius="md">
-                        <Text fontSize="9px" color="gray.500" fontWeight="bold">POOL TOP 3 (HBD)</Text>
+                        <HStack justify="space-between" w="100%">
+                            <Text fontSize="9px" color="gray.500" fontWeight="bold">POOL TOP 3 (HBD)</Text>
+                            <Image src="https://cryptologos.cc/logos/hive-blockchain-hive-logo.png" boxSize="12px" alt="Hive" />
+                        </HStack>
                         <Text fontSize="xs" color="yellow.400" fontWeight="black">+{poolAmount} HBD</Text>
                     </VStack>
                 </SimpleGrid>
@@ -218,20 +254,33 @@ const ChallengeCard = ({ challenge, onJoin, isJoined }: { challenge: Challenge, 
                     </Collapse>
                 </VStack>
 
-                <Button
-                    w="100%"
-                    colorScheme={isJoined ? "green" : "primary"}
-                    variant={isJoined ? "outline" : "solid"}
-                    onClick={() => onJoin(challenge)}
-                    isDisabled={isJoined}
-                    size="lg"
-                    h="50px"
-                    fontSize="sm"
-                    fontWeight="black"
-                    letterSpacing="wide"
-                >
-                    {isJoined ? "EN COMPETENCIA" : "COMPRAR ENTRADA"}
-                </Button>
+                {/* Ranking Section if available */}
+                {ranking && ranking.length > 0 && (
+                    <Leaderboard ranking={ranking} />
+                )}
+
+                {!ranking && (
+                    <Button
+                        w="100%"
+                        colorScheme={isJoined ? "green" : "primary"}
+                        variant={isJoined ? "outline" : "solid"}
+                        onClick={() => onJoin(challenge)}
+                        isDisabled={isJoined}
+                        size="lg"
+                        h="50px"
+                        fontSize="sm"
+                        fontWeight="black"
+                        letterSpacing="wide"
+                    >
+                        {isJoined ? "EN COMPETENCIA" : "COMPRAR ENTRADA"}
+                    </Button>
+                )}
+
+                {ranking && (
+                    <Badge colorScheme="green" variant="solid" w="100%" p={3} textAlign="center" borderRadius="lg">
+                        RETO FINALIZADO & PREMIADO
+                    </Badge>
+                )}
             </VStack>
         </Box>
     );
@@ -243,8 +292,44 @@ const ChallengeCard = ({ challenge, onJoin, isJoined }: { challenge: Challenge, 
  * Handles the async blockchain registration flow and loading states.
  */
 const ChallengeBoard = () => {
-    const { joinChallenge, magnesium, costMultiplier, joinedChallenges, isLoading } = useFortisM2E();
+    const { joinChallenge, magnesium, fetchChallenges, fetchRankings, joinedChallenges, isLoading } = useFortisM2E();
+    const [challenges, setChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
+    const [allRankings, setAllRankings] = useState<any[]>([]);
+    const [loadingData, setLoadingData] = useState(true);
     const toast = useToast();
+
+    useEffect(() => {
+        loadBlockchainData();
+    }, []);
+
+    const loadBlockchainData = async () => {
+        setLoadingData(true);
+        const [bcChallenges, bcRankings] = await Promise.all([
+            fetchChallenges(),
+            fetchRankings()
+        ]);
+
+        // Map blockchain challenges to UI format
+        const dynamicChallenges: Challenge[] = bcChallenges.map((bc: any) => {
+            const mgType = bc.magnesiumType || 'standard';
+            const config = MAGNESIO_CONFIG[mgType as MagnesiumType];
+            return {
+                id: bc.id,
+                title: bc.title,
+                description: bc.description,
+                magnesiumCost: 1,
+                magnesiumType: mgType as MagnesiumType,
+                durationDays: bc.durationDays || 7,
+                timestamp: bc.timestamp,
+                participantRewardFORTIS: `${config.rewardFORTIS} FORTIS`,
+                status: 'available'
+            };
+        });
+
+        setChallenges([...INITIAL_CHALLENGES, ...dynamicChallenges]);
+        setAllRankings(bcRankings);
+        setLoadingData(false);
+    };
 
     /**
      * Entry handler that bridges the UI with Hive Blockchain.
@@ -294,17 +379,29 @@ const ChallengeBoard = () => {
 
                 <Divider borderColor="rgba(217, 148, 20, 0.3)" />
 
-                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6} w="100%">
-                    {INITIAL_CHALLENGES.map((challenge) => (
+                <Heading size="lg" mb={2}>RETOS DISPONIBLES</Heading>
+                <Text color="gray.500" mb={4}>Supera tus límites y gana FORTIS.</Text>
+            </VStack>
+
+            {challenges.length === 0 ? (
+                <Box py={20} textAlign="center" bg="muted" borderRadius="2xl" border="1px dashed" borderColor="whiteAlpha.200" mt={8}>
+                    <Icon as={FaTrophy} boxSize={12} color="gray.600" mb={4} />
+                    <Heading size="md" color="gray.400">NO HAY RETOS ACTIVOS</Heading>
+                    <Text color="gray.600">Por favor, vuelve más tarde o contacta con administración.</Text>
+                </Box>
+            ) : (
+                <SimpleGrid columns={{ base: 1, lg: 2, xl: 3 }} spacing={8} w="100%" mt={8}>
+                    {challenges.map((challenge) => (
                         <ChallengeCard
                             key={challenge.id}
                             challenge={challenge}
                             onJoin={handleJoinChallenge}
                             isJoined={joinedChallenges.includes(challenge.id)}
+                            ranking={allRankings.find(r => r.challenge_id === challenge.id)?.ranking}
                         />
                     ))}
                 </SimpleGrid>
-            </VStack>
+            )}
         </Box>
     );
 };

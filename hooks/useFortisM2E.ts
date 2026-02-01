@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { useToast } from '@chakra-ui/react';
+import { Client } from '@hiveio/dhive';
 
-export type MagnesiumType = 'standard' | 'aged' | 'gold';
+const HIVE_RPC_NODES = [
+    'https://api.hive.blog',
+    'https://api.deathwing.me',
+    'https://hive-api.arcange.eu'
+];
+const hiveClient = new Client(HIVE_RPC_NODES);
+
+export type MagnesiumType = 'standard' | 'aged' | 'gold' | 'airdrop';
 
 export interface Challenge {
     id: string;
@@ -14,294 +22,257 @@ export interface Challenge {
     reward?: string;
     participantRewardFORTIS?: string;
     top3RewardHBD?: string;
+    durationDays?: number;
+    timestamp?: string;
     status: 'available' | 'joined' | 'completed';
 }
 
 export type AthleteTier = 'Bronce' | 'Plata' | 'Oro' | 'Fortis';
 
+// GENESIS: Ignore any test challenge created before this date/time
+const M2E_GENESIS_TIMESTAMP = '2026-02-01T20:25:00Z'; // UTC time for right now (16:25 local)
+
 /**
  * useFortisM2E Hook
  * The core engine of the Move-to-Earn (M2E) economy.
- * Manages player inventory (magnesium), athlete tiers, stake, and Hive Blockchain interactions.
  */
 export const useFortisM2E = () => {
     const { user } = useKeychain();
     const toast = useToast();
 
-    // Multi-magnesium state
     const [magnesium, setMagnesium] = useState<Record<MagnesiumType, number>>({
-        standard: 0,
-        aged: 0,
-        gold: 0
+        standard: 0, aged: 0, gold: 0, airdrop: 0
     });
 
     const [stakeAmount, setStakeAmount] = useState<number>(0);
     const [lastRegen, setLastRegen] = useState<number>(Date.now());
     const [joinedChallenges, setJoinedChallenges] = useState<string[]>([]);
-    const [loadedUser, setLoadedUser] = useState<string | null>(null); // Track which user data we have
+    const [loadedUser, setLoadedUser] = useState<string | null>(null);
     const [isReloading, setIsReloading] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [hasClaimedFaucet, setHasClaimedFaucet] = useState(false);
 
-    // TIER CALCULATION: 
-    // Higher stake amounts grant premium athlete statuses and economic discounts.
     const tier = useMemo((): AthleteTier => {
-        if (stakeAmount >= 5000) return 'Fortis'; // Elite
-        if (stakeAmount >= 1000) return 'Oro';    // Pro
-        if (stakeAmount >= 100) return 'Plata';  // Intermediate
-        return 'Bronce';                         // Beginner
+        if (stakeAmount >= 5000) return 'Fortis';
+        if (stakeAmount >= 1000) return 'Oro';
+        if (stakeAmount >= 100) return 'Plata';
+        return 'Bronce';
     }, [stakeAmount]);
 
-    // PASSIVE REGENERATION:
-    // High-tier athletes (Oro & Fortis) regenerate magnesium over time automatically.
-    useEffect(() => {
-        if (isLoading || (tier !== 'Oro' && tier !== 'Fortis')) return;
-
-        const interval = setInterval(() => {
-            const now = Date.now();
-            const hoursPassed = (now - lastRegen) / (1000 * 60 * 60);
-
-            if (hoursPassed >= 12) { // Every 12 hours check
-                const amount = tier === 'Fortis' ? 1 : 0.5; // Simulating 1-2 per day
-                setMagnesium(prev => ({
-                    ...prev,
-                    standard: Math.min(50, prev.standard + amount)
-                }));
-                setLastRegen(now);
-            }
-        }, 60000); // Check every minute
-
-        return () => clearInterval(interval);
-    }, [tier, lastRegen, isLoading]);
-
-    // Cost multiplier based on tier
     const costMultiplier = useMemo(() => {
         switch (tier) {
-            case 'Fortis': return 0.5; // 50% discount
-            case 'Oro': return 0.7;    // 30% discount
-            case 'Plata': return 0.9;  // 10% discount
+            case 'Fortis': return 0.5;
+            case 'Oro': return 0.7;
+            case 'Plata': return 0.9;
             default: return 1;
         }
     }, [tier]);
 
-    // Load state from local storage initially
+    // LOAD DATA
     useEffect(() => {
         const currentUser = user || 'guest';
         setIsLoading(true);
 
-        const key = `fortis_m2e_v2_${currentUser}`;
-        const saved = localStorage.getItem(key);
-
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setMagnesium(parsed.magnesium || { standard: 5, aged: 0, gold: 0 });
-                setStakeAmount(parsed.stakeAmount || 0);
-                setLastRegen(parsed.lastRegen || Date.now());
-                setJoinedChallenges(parsed.joinedChallenges || []);
-            } catch (e) {
-                console.error("Error parsing saved state:", e);
-                setMagnesium({ standard: 5, aged: 0, gold: 0 });
+        const loadData = async () => {
+            const key = `fortis_m2e_v2_${currentUser}`;
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    setMagnesium(parsed.magnesium || { standard: 5, aged: 0, gold: 0, airdrop: 0 });
+                    setStakeAmount(parsed.stakeAmount || 0);
+                    setLastRegen(parsed.lastRegen || Date.now());
+                    setJoinedChallenges(parsed.joinedChallenges || []);
+                } catch (e) {
+                    setMagnesium({ standard: 5, aged: 0, gold: 0, airdrop: 0 });
+                }
+            } else {
+                setMagnesium({ standard: 5, aged: 0, gold: 0, airdrop: 0 });
+                setStakeAmount(0);
                 setJoinedChallenges([]);
             }
-        } else {
-            // Default starting state for a new user/guest
-            setMagnesium({ standard: 5, aged: 0, gold: 0 });
-            setStakeAmount(0);
-            setJoinedChallenges([]);
-        }
 
-        setLoadedUser(currentUser);
-        setIsLoading(false);
+            // Check Faucet Status
+            if (user) {
+                try {
+                    const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
+                    const claimed = history.some(tx =>
+                        tx[1].op[0] === 'custom_json' &&
+                        tx[1].op[1].id === 'fortis_m2e_faucet_claim' &&
+                        tx[1].op[1].required_posting_auths &&
+                        tx[1].op[1].required_posting_auths[0] === user
+                    );
+                    setHasClaimedFaucet(claimed);
+                } catch (e) {
+                    console.error("Faucet verify error", e);
+                }
+            }
+
+            setLoadedUser(currentUser);
+            setIsLoading(false);
+        };
+
+        loadData();
     }, [user]);
 
-    // Sync with local storage
+    // SYNC DATA
     useEffect(() => {
         const currentUser = user || 'guest';
-
-        // CRITICAL: Only save if we are NOT loading AND the data in state belongs to the current user
         if (!isLoading && loadedUser === currentUser) {
             localStorage.setItem(`fortis_m2e_v2_${currentUser}`, JSON.stringify({
-                magnesium,
-                stakeAmount,
-                lastRegen,
-                joinedChallenges
+                magnesium, stakeAmount, lastRegen, joinedChallenges
             }));
         }
     }, [magnesium, stakeAmount, lastRegen, joinedChallenges, user, isLoading, loadedUser]);
 
-    // Simulation tool: Add stake
     const simulateStake = (amount: number) => {
         setStakeAmount(prev => prev + amount);
-        toast({
-            title: "Stake Actualizado",
-            description: `Has añadido ${amount} tokens FORTIS al stake.`,
-            status: "info",
-            duration: 3000,
-        });
+        toast({ title: "Stake Actualizado", status: "info" });
     };
 
-    /**
-     * RELOAD MAGNESIUM (Blockchain Purchase)
-     * Facilitates HBD transfers to the community pool in exchange for 5 uses (1 block).
-     * 70% of the revenue is used for FORTIS buybacks (Automated via contract).
-     */
     const reloadMagnesium = useCallback(async (type: MagnesiumType = 'standard') => {
-        if (!user) {
-            toast({
-                title: "Inicia sesión",
-                description: "Necesitas estar conectado para comprar magnesio.",
-                status: "warning",
-                duration: 3000,
-            });
-            return;
-        }
-
+        if (!user) return;
         setIsReloading(true);
-
-        const costs = {
-            standard: '1.000',
-            aged: '3.000',
-            gold: '5.000'
-        };
-
-        const amountHBD = costs[type];
+        const costs: any = { standard: '1.000', aged: '3.000', gold: '5.000', airdrop: '20.000' };
 
         try {
             if (window.hive_keychain) {
-                (window.hive_keychain as any).requestTransfer(
-                    user,
-                    'fortis.m2e',
-                    amountHBD,
-                    `Recarga de Magnesio ${type.toUpperCase()} - Fortis Workout`,
-                    'HBD',
-                    (response: any) => {
-                        if (response.success) {
-                            setMagnesium(prev => ({
-                                ...prev,
-                                [type]: prev[type] + 5
-                            }));
-                            toast({
-                                title: "¡Recarga exitosa!",
-                                description: `Has recibido 5 unidades de magnesio ${type}.`,
-                                status: "success",
-                                duration: 5000,
-                            });
-                        } else {
-                            toast({
-                                title: "Error en la recarga",
-                                description: response.message || "La transacción fue cancelada.",
-                                status: "error",
-                                duration: 5000,
-                            });
+                if (type === 'airdrop') {
+                    const json = {
+                        contractName: "tokens",
+                        contractAction: "transfer",
+                        contractPayload: { symbol: "FORTIS", to: "fortis.m2e", quantity: "20", memo: "Reload AIRDROP" }
+                    };
+                    (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), "Buy Airdrop Magnesium (20 FORTIS)", (res: any) => {
+                        if (res.success) {
+                            setMagnesium(prev => ({ ...prev, airdrop: prev.airdrop + 1 }));
+                            toast({ title: "Recarga exitosa (+1)", status: "success" });
                         }
                         setIsReloading(false);
-                    }
-                );
-            } else {
-                // Demo fallback
-                setTimeout(() => {
-                    setMagnesium(prev => ({
-                        ...prev,
-                        [type]: prev[type] + 5
-                    }));
-                    setIsReloading(false);
-                    toast({
-                        title: "Modo Demo",
-                        description: `Añadidas 5 unidades de ${type} (Simulación).`,
-                        status: "info",
-                        duration: 3000,
                     });
-                }, 1000);
+                } else {
+                    (window.hive_keychain as any).requestTransfer(user, 'fortis.m2e', costs[type], JSON.stringify({ action: 'reload', type }), 'HBD', (res: any) => {
+                        if (res.success) {
+                            setMagnesium(prev => ({ ...prev, [type]: prev[type] + 5 }));
+                            toast({ title: "Recarga exitosa (+5)", status: "success" });
+                        }
+                        setIsReloading(false);
+                    });
+                }
             }
-        } catch (error) {
-            setIsReloading(false);
-            console.error("Reload error:", error);
-        }
+        } catch (e) { setIsReloading(false); }
     }, [user, toast]);
 
-    /**
-     * CONSUME MAGNESIUM
-     * Deducts magnesium uses from stock while applying tier-based discounts.
-     */
     const consumeMagnesium = useCallback((amount: number, type: MagnesiumType = 'standard', challengeId?: string) => {
-        const adjustedCost = Math.ceil(amount * costMultiplier);
-
-        if (magnesium[type] >= adjustedCost) {
-            setMagnesium(prev => ({
-                ...prev,
-                [type]: prev[type] - adjustedCost
-            }));
-
-            if (challengeId) {
-                setJoinedChallenges(prev => {
-                    if (prev.includes(challengeId)) return prev;
-                    return [...prev, challengeId];
-                });
-            }
+        const cost = Math.ceil(amount * costMultiplier);
+        if (magnesium[type] >= cost) {
+            setMagnesium(prev => ({ ...prev, [type]: prev[type] - cost }));
+            if (challengeId) setJoinedChallenges(prev => prev.includes(challengeId) ? prev : [...prev, challengeId]);
             return true;
         }
         return false;
     }, [magnesium, costMultiplier]);
 
-    /**
-     * JOIN CHALLENGE (Blockchain Proof-of-Entry)
-     * Broadcasts a 'custom_json' to Hive using Keychain.
-     * This ensures the money trail and entry status are immutable and public.
-     */
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
-        if (!user) return false;
+        if (!user || !window.hive_keychain) return false;
+        const cost = Math.ceil(amount * costMultiplier);
+        if (magnesium[type] < cost) return false;
 
         return new Promise<boolean>((resolve) => {
-            const entryData = {
-                app: 'fortis/0.1.0',
-                action: 'join_challenge',
-                challenge_id: challengeId,
-                magnesium_type: type,
-                cost: amount,
-                timestamp: Date.now()
-            };
-
-            if (window.hive_keychain) {
-                (window.hive_keychain as any).requestCustomJson(
-                    user,
-                    'fortis_m2e_entry',
-                    'Posting',
-                    JSON.stringify(entryData),
-                    `Inscripción en Reto: ${challengeId}`,
-                    (response: any) => {
-                        if (response.success) {
-                            const success = consumeMagnesium(amount, type, challengeId);
-                            resolve(success);
-                        } else {
-                            toast({
-                                title: "Error de Inscripción",
-                                description: "La transacción en la blockchain fue cancelada o falló.",
-                                status: "error",
-                                duration: 5000,
-                            });
-                            resolve(false);
-                        }
-                    }
-                );
-            } else {
-                // Demo fallback
-                const success = consumeMagnesium(amount, type, challengeId);
-                resolve(success);
-            }
+            (window.hive_keychain as any).requestTransfer(user, 'fortis.m2e', '0.001', JSON.stringify({ action: 'join', id: challengeId, type }), 'HBD', (res: any) => {
+                if (res.success) resolve(consumeMagnesium(amount, type, challengeId));
+                else resolve(false);
+            });
         });
-    }, [user, consumeMagnesium, toast]);
+    }, [user, magnesium, costMultiplier, consumeMagnesium]);
 
-    return {
-        magnesium,
-        joinedChallenges,
-        stakeAmount,
-        tier,
-        costMultiplier,
-        reloadMagnesium,
-        joinChallenge,
-        consumeMagnesium,
-        simulateStake,
-        isReloading,
-        isLoading
-    };
+    const fetchParticipants = useCallback(async (challengeId?: string) => {
+        try {
+            const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
+            return history
+                .filter(tx => tx[1].op[0] === 'transfer' && tx[1].op[1].to === 'fortis.m2e' && tx[1].op[1].amount === '0.001 HBD')
+                .map(tx => {
+                    try {
+                        const d = JSON.parse(tx[1].op[1].memo);
+                        return { account: tx[1].op[1].from, challengeId: d.id, timestamp: d.timestamp || tx[1].timestamp };
+                    } catch { return null; }
+                })
+                .filter(e => e !== null && (!challengeId || e.challengeId === challengeId));
+        } catch { return []; }
+    }, []);
+
+    const payoutRewards = useCallback(async (payouts: any[]) => {
+        if (!user || !window.hive_keychain) return;
+        for (const p of payouts) {
+            const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: p.account, quantity: p.amount.toString(), memo: `Reward #${p.challengeId}` } };
+            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Paying ${p.account}`, () => setTimeout(r, 500)));
+        }
+        toast({ title: "Pagos completados", status: "success" });
+    }, [user, toast]);
+
+    const createChallenge = useCallback(async (title: string, desc: string, days = 7, type: MagnesiumType = 'standard') => {
+        if (!user || !window.hive_keychain) return;
+        const id = Date.now().toString();
+        const json = { id, title, description: desc, durationDays: days, magnesiumType: type, timestamp: new Date().toISOString() };
+        return new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_challenge', 'Posting', JSON.stringify(json), `Create: ${title}`, (res: any) => r(res.success)));
+    }, [user]);
+
+    const fetchChallenges = useCallback(async () => {
+        const admins = ['fortis.m2e', 'hecatonquirox'];
+        try {
+            const results = await Promise.all(admins.map(async acc => {
+                const history = await hiveClient.database.getAccountHistory(acc, -1, 1000);
+                return history.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_challenge').map(tx => ({ ...JSON.parse(tx[1].op[1].json), creator: acc }));
+            }));
+            return results.flat().filter(c => new Date(c.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        } catch { return []; }
+    }, []);
+
+    const saveRanking = useCallback(async (id: string, ranking: any[]) => {
+        if (!user || !window.hive_keychain) return;
+        const json = { challenge_id: id, ranking, timestamp: new Date().toISOString() };
+        return new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_results', 'Posting', JSON.stringify(json), `Save #${id}`, (res: any) => r(res.success)));
+    }, [user]);
+
+    const fetchRankings = useCallback(async (id?: string) => {
+        const admins = ['fortis.m2e', 'hecatonquirox'];
+        try {
+            const results = await Promise.all(admins.map(async acc => {
+                const h = await hiveClient.database.getAccountHistory(acc, -1, 1000);
+                return h.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_results').map(tx => JSON.parse(tx[1].op[1].json));
+            }));
+            const r = results.flat().filter(x => new Date(x.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP));
+            return id ? r.filter(x => x.challenge_id === id) : r;
+        } catch { return []; }
+    }, []);
+
+    const claimAirdropFaucet = useCallback(async () => {
+        if (!user || !window.hive_keychain || hasClaimedFaucet) return;
+        return new Promise(r => {
+            (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_faucet_claim', 'Posting', JSON.stringify({ account: user, timestamp: new Date().toISOString() }), "Claim Faucet", (res: any) => {
+                if (res.success) {
+                    setHasClaimedFaucet(true);
+                    toast({ title: "Solicitud de Faucet Enviada", status: "success" });
+                }
+                r(res.success);
+            });
+        });
+    }, [user, hasClaimedFaucet, toast]);
+
+    const fetchFaucetClaims = useCallback(async () => {
+        try {
+            const h = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
+            return h.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_faucet_claim').map(tx => ({ account: tx[1].op[1].required_posting_auths[0], timestamp: tx[1].timestamp }));
+        } catch { return []; }
+    }, []);
+
+    const payoutFaucet = useCallback(async (claims: any[]) => {
+        if (!user || !window.hive_keychain) return;
+        for (const c of claims) {
+            const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
+            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
+        }
+    }, [user]);
+
+    return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading };
 };

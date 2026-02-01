@@ -3,7 +3,7 @@ import { Badge, Box, Button, HStack, Icon, Tooltip, useColorMode, Modal, ModalOv
 import { useRouter } from 'next/navigation';
 import { FiBell, FiBook, FiCreditCard, FiHome, FiUser, FiLogIn, FiLogOut, FiMessageSquare, FiChevronLeft, FiChevronRight, FiTarget } from 'react-icons/fi';
 import { useState, useRef, useEffect } from 'react';
-import { FaTrophy } from 'react-icons/fa';
+import { FaTrophy, FaShieldAlt } from 'react-icons/fa';
 
 export default function FooterNavigation() {
 
@@ -143,6 +143,22 @@ export default function FooterNavigation() {
                             <Icon as={FiTarget} boxSize={6} />
                         </Button>
                     </Tooltip>
+
+                    {user && ['hecatonquirox', 'fortis.m2e'].includes(user) && (
+                        <Tooltip label="Admin" aria-label="Admin tooltip">
+                            <Button
+                                onClick={() => handleNavigation("/admin/m2e")}
+                                variant="ghost"
+                                color="primary"
+                                size="md"
+                                minW="50px"
+                                h="50px"
+                                _hover={{ bg: 'whiteAlpha.200' }}
+                            >
+                                <Icon as={FaShieldAlt} boxSize={6} />
+                            </Button>
+                        </Tooltip>
+                    )}
 
                     {user ? (
                         <>

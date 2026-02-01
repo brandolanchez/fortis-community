@@ -4,7 +4,7 @@ import { Badge, Box, VStack, Button, Icon, Image, Spinner, Flex, Text, useColorM
 import { useRouter, usePathname } from 'next/navigation';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { FiHome, FiBell, FiUser, FiShoppingCart, FiBook, FiCreditCard, FiLogIn, FiLogOut, FiMessageSquare, FiTarget } from 'react-icons/fi';
-import { FaTrophy } from 'react-icons/fa';
+import { FaTrophy, FaShieldAlt } from 'react-icons/fa';
 import { Notifications } from '@hiveio/dhive';
 import { fetchNewNotifications, getCommunityInfo, getProfile } from '@/lib/hive/client-functions';
 import { animate, color, motion, px } from 'framer-motion';
@@ -197,6 +197,25 @@ export default function Sidebar() {
                             </Button>
                         </Box>
                     </Tooltip>
+
+                    {user && ['hecatonquirox', 'fortis.m2e'].includes(user) && (
+                        <Tooltip label="Admin" placement="right" hasArrow isDisabled={!isCompactMode}>
+                            <Box w="full">
+                                <Button
+                                    onClick={() => handleNavigation("/admin/m2e")}
+                                    variant="ghost"
+                                    w="full"
+                                    justifyContent={iconJustify}
+                                    color="primary"
+                                    leftIcon={<Icon as={FaShieldAlt} boxSize={4} />}
+                                    px={3}
+                                    borderRadius="md"
+                                >
+                                    <Text display={textDisplay}>Admin</Text>
+                                </Button>
+                            </Box>
+                        </Tooltip>
+                    )}
                     {user && (
                         <>
                             <Tooltip label="Notifications" placement="right" hasArrow isDisabled={!isCompactMode}>
