@@ -474,9 +474,9 @@ const AdminM2E = () => {
                 </Tabs>
 
                 {/* Modal para Crear Reto */}
-                <Modal isOpen={isCreateOpen} onClose={onCreateClose} isCentered minW="500px">
+                <Modal isOpen={isCreateOpen} onClose={onCreateClose} isCentered>
                     <ModalOverlay backdropFilter="blur(5px)" />
-                    <ModalContent bg="muted" borderRadius="2xl">
+                    <ModalContent bg="muted" borderRadius="2xl" minW="500px">
                         <ModalHeader>🚀 LANZAR NUEVO RETO FORTIS</ModalHeader>
                         <ModalCloseButton />
                         <ModalBody pb={6}>
