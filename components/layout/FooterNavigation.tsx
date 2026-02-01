@@ -1,16 +1,11 @@
 import { useKeychain } from '@/contexts/KeychainContext';
 import { Badge, Box, Button, HStack, Icon, Tooltip, useColorMode, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Input, useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { FiBell, FiBook, FiCreditCard, FiHome, FiUser, FiLogIn, FiLogOut, FiMessageSquare, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiBell, FiBook, FiCreditCard, FiHome, FiUser, FiLogIn, FiLogOut, FiMessageSquare, FiChevronLeft, FiChevronRight, FiTarget } from 'react-icons/fi';
 import { useState, useRef, useEffect } from 'react';
+import { FaTrophy } from 'react-icons/fa';
 
-interface FooterNavigationProps {
-    isChatOpen: boolean;
-    setIsChatOpen: (isOpen: boolean) => void;
-    chatUnreadCount?: number;
-}
-
-export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnreadCount = 0 }: FooterNavigationProps) {
+export default function FooterNavigation() {
 
     const { user, login, logout, isLoggedIn } = useKeychain();
     const router = useRouter();
@@ -112,23 +107,41 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                             onClick={() => handleNavigation("/")}
                             variant="ghost"
                             color="white"
-                            size="sm"
-                            minW="40px"
+                            size="md"
+                            minW="50px"
+                            h="50px"
                             _hover={{ bg: 'whiteAlpha.200' }}
-                            leftIcon={<Icon as={FiHome} boxSize={4} />}
-                        />
+                        >
+                            <Icon as={FiHome} boxSize={6} />
+                        </Button>
                     </Tooltip>
 
-                    <Tooltip label="Blog" aria-label="Blog tooltip">
+                    <Tooltip label="Retos" aria-label="Retos tooltip">
                         <Button
-                            onClick={() => handleNavigation("/blog")}
+                            onClick={() => handleNavigation("/challenges")}
                             variant="ghost"
                             color="white"
-                            size="sm"
-                            minW="40px"
+                            size="md"
+                            minW="50px"
+                            h="50px"
                             _hover={{ bg: 'whiteAlpha.200' }}
-                            leftIcon={<Icon as={FiBook} boxSize={4} />}
-                        />
+                        >
+                            <Icon as={FaTrophy} boxSize={6} />
+                        </Button>
+                    </Tooltip>
+
+                    <Tooltip label="Rutinas" aria-label="Rutinas tooltip">
+                        <Button
+                            onClick={() => handleNavigation("/routines")}
+                            variant="ghost"
+                            color="white"
+                            size="md"
+                            minW="50px"
+                            h="50px"
+                            _hover={{ bg: 'whiteAlpha.200' }}
+                        >
+                            <Icon as={FiTarget} boxSize={6} />
+                        </Button>
                     </Tooltip>
 
                     {user ? (
@@ -138,11 +151,13 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                                     onClick={() => handleNavigation("/@" + user + "/notifications")}
                                     variant="ghost"
                                     color="white"
-                                    size="sm"
-                                    minW="40px"
+                                    size="md"
+                                    minW="50px"
+                                    h="50px"
                                     _hover={{ bg: 'whiteAlpha.200' }}
-                                    leftIcon={<Icon as={FiBell} boxSize={4} />}
-                                />
+                                >
+                                    <Icon as={FiBell} boxSize={6} />
+                                </Button>
                             </Tooltip>
 
                             <Tooltip label="Wallet" aria-label="Wallet tooltip">
@@ -150,43 +165,13 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                                     onClick={() => handleNavigation("/@" + user + '/wallet')}
                                     variant="ghost"
                                     color="white"
-                                    size="sm"
-                                    minW="40px"
+                                    size="md"
+                                    minW="50px"
+                                    h="50px"
                                     _hover={{ bg: 'whiteAlpha.200' }}
-                                    leftIcon={<Icon as={FiCreditCard} boxSize={4} />}
-                                />
-                            </Tooltip>
-
-                            <Tooltip label="Chat" aria-label="Chat tooltip">
-                                <Box position="relative">
-                                    <Button
-                                        onClick={() => setIsChatOpen(!isChatOpen)}
-                                        variant="ghost"
-                                        color="white"
-                                        size="sm"
-                                        minW="40px"
-                                        bg={isChatOpen ? 'blue.500' : 'transparent'}
-                                        _hover={{ bg: isChatOpen ? 'blue.600' : 'whiteAlpha.200' }}
-                                        leftIcon={<Icon as={FiMessageSquare} boxSize={4} />}
-                                    />
-                                    {chatUnreadCount > 0 && !isChatOpen && (
-                                        <Badge
-                                            position="absolute"
-                                            top="-2px"
-                                            right="-2px"
-                                            colorScheme="red"
-                                            borderRadius="full"
-                                            minW="18px"
-                                            h="18px"
-                                            display="flex"
-                                            alignItems="center"
-                                            justifyContent="center"
-                                            fontSize="xs"
-                                        >
-                                            {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                                        </Badge>
-                                    )}
-                                </Box>
+                                >
+                                    <Icon as={FiCreditCard} boxSize={6} />
+                                </Button>
                             </Tooltip>
 
                             <Tooltip label="Profile" aria-label="Profile tooltip">
@@ -194,11 +179,13 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                                     onClick={() => handleNavigation("/@" + user)}
                                     variant="ghost"
                                     color="white"
-                                    size="sm"
-                                    minW="40px"
+                                    size="md"
+                                    minW="50px"
+                                    h="50px"
                                     _hover={{ bg: 'whiteAlpha.200' }}
-                                    leftIcon={<Icon as={FiUser} boxSize={4} />}
-                                />
+                                >
+                                    <Icon as={FiUser} boxSize={6} />
+                                </Button>
                             </Tooltip>
 
                             <Tooltip label="Logout" aria-label="Logout tooltip">
@@ -206,11 +193,13 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                                     onClick={logout}
                                     variant="ghost"
                                     color="white"
-                                    size="sm"
-                                    minW="40px"
+                                    size="md"
+                                    minW="50px"
+                                    h="50px"
                                     _hover={{ bg: 'whiteAlpha.200' }}
-                                    leftIcon={<Icon as={FiLogOut} boxSize={4} />}
-                                />
+                                >
+                                    <Icon as={FiLogOut} boxSize={6} />
+                                </Button>
                             </Tooltip>
                         </>
                     ) : (
@@ -219,11 +208,13 @@ export default function FooterNavigation({ isChatOpen, setIsChatOpen, chatUnread
                                 onClick={() => setModalDisplayed(true)}
                                 variant="ghost"
                                 color="primary"
-                                size="sm"
-                                minW="40px"
+                                size="md"
+                                minW="50px"
+                                h="50px"
                                 _hover={{ bg: 'whiteAlpha.200', color: 'primary' }}
-                                leftIcon={<Icon as={FiLogIn} boxSize={4} />}
-                            />
+                            >
+                                <Icon as={FiLogIn} boxSize={6} />
+                            </Button>
                         </Tooltip>
                     )}
                 </HStack>
