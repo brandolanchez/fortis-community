@@ -92,16 +92,18 @@ export const useFortisM2E = () => {
                 setJoinedChallenges([]);
             }
 
-            // Check Faucet Status
+            // Check Faucet Status via 0.001 HBD beacon
             if (user) {
                 try {
                     const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-                    const claimed = history.some(tx =>
-                        tx[1].op[0] === 'custom_json' &&
-                        tx[1].op[1].id === 'fortis_m2e_faucet_claim' &&
-                        tx[1].op[1].required_posting_auths &&
-                        tx[1].op[1].required_posting_auths[0] === user
-                    );
+                    const claimed = history.some(tx => {
+                        const op = tx[1].op;
+                        if (op[0] !== 'transfer' || op[1].to !== 'fortis.m2e' || op[1].amount !== '0.001 HBD') return false;
+                        try {
+                            const d = JSON.parse(op[1].memo);
+                            return d.action === 'faucet_claim' && op[1].from === user;
+                        } catch { return false; }
+                    });
                     setHasClaimedFaucet(claimed);
                 } catch (e) {
                     console.error("Faucet verify error", e);
@@ -249,20 +251,38 @@ export const useFortisM2E = () => {
     const claimAirdropFaucet = useCallback(async () => {
         if (!user || !window.hive_keychain || hasClaimedFaucet) return;
         return new Promise(r => {
-            (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_faucet_claim', 'Posting', JSON.stringify({ account: user, timestamp: new Date().toISOString() }), "Claim Faucet", (res: any) => {
-                if (res.success) {
-                    setHasClaimedFaucet(true);
-                    toast({ title: "Solicitud de Faucet Enviada", status: "success" });
+            // Use 0.001 HBD transfer for "on-chain notification" to @fortis.m2e
+            (window.hive_keychain as any).requestTransfer(
+                user,
+                'fortis.m2e',
+                '0.001',
+                JSON.stringify({ action: 'faucet_claim', timestamp: new Date().toISOString() }),
+                'HBD',
+                (res: any) => {
+                    if (res.success) {
+                        setHasClaimedFaucet(true);
+                        toast({ title: "Solicitud de Faucet Enviada", status: "success" });
+                    }
+                    r(res.success);
                 }
-                r(res.success);
-            });
+            );
         });
     }, [user, hasClaimedFaucet, toast]);
 
     const fetchFaucetClaims = useCallback(async () => {
         try {
             const h = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-            return h.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_faucet_claim').map(tx => ({ account: tx[1].op[1].required_posting_auths[0], timestamp: tx[1].timestamp }));
+            return h.filter(tx => {
+                const op = tx[1].op;
+                if (op[0] !== 'transfer' || op[1].to !== 'fortis.m2e' || op[1].amount !== '0.001 HBD') return false;
+                try {
+                    const d = JSON.parse(op[1].memo);
+                    return d.action === 'faucet_claim';
+                } catch { return false; }
+            }).map(tx => ({
+                account: tx[1].op[1].from,
+                timestamp: tx[1].timestamp
+            }));
         } catch { return []; }
     }, []);
 
