@@ -96,7 +96,7 @@ export const useFortisM2E = () => {
             if (user) {
                 try {
                     const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-                    const claimed = history.some(tx => {
+                    const claimed = (history || []).some(tx => {
                         const op = tx[1].op;
                         return op[0] === 'comment' &&
                             op[1].parent_author === 'fortis.m2e' &&
@@ -199,7 +199,7 @@ export const useFortisM2E = () => {
     const fetchParticipants = useCallback(async (challengeId?: string) => {
         try {
             const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-            return history
+            return (history || [])
                 .filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_join_challenge')
                 .map(tx => {
                     try {
@@ -232,7 +232,7 @@ export const useFortisM2E = () => {
         try {
             const results = await Promise.all(admins.map(async acc => {
                 const history = await hiveClient.database.getAccountHistory(acc, -1, 1000);
-                return history.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_challenge').map(tx => ({ ...JSON.parse(tx[1].op[1].json), creator: acc }));
+                return (history || []).filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_challenge').map(tx => ({ ...JSON.parse(tx[1].op[1].json), creator: acc }));
             }));
             return results.flat().filter(c => new Date(c.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         } catch { return []; }
@@ -249,7 +249,7 @@ export const useFortisM2E = () => {
         try {
             const results = await Promise.all(admins.map(async acc => {
                 const h = await hiveClient.database.getAccountHistory(acc, -1, 1000);
-                return h.filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_results').map(tx => JSON.parse(tx[1].op[1].json));
+                return (h || []).filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_results').map(tx => JSON.parse(tx[1].op[1].json));
             }));
             const r = results.flat().filter(x => new Date(x.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP));
             return id ? r.filter(x => x.challenge_id === id) : r;
@@ -288,7 +288,7 @@ export const useFortisM2E = () => {
     const fetchFaucetClaims = useCallback(async () => {
         try {
             const h = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-            return h.filter(tx => {
+            return (h || []).filter(tx => {
                 const op = tx[1].op;
                 return op[0] === 'comment' &&
                     op[1].parent_author === 'fortis.m2e' &&
