@@ -448,19 +448,15 @@ export const useFortisM2E = () => {
             return { history: [], pending: [] };
         }
     }, []);
-} catch (error) {
-    console.error("Error scanning blockchain:", error);
-    return [];
-}
-    }, []);
 
-const payoutFaucet = useCallback(async (claims: any[]) => {
-    if (!user || !window.hive_keychain) return;
-    for (const c of claims) {
-        const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
-        await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
-    }
-}, [user]);
 
-return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
+    const payoutFaucet = useCallback(async (claims: any[]) => {
+        if (!user || !window.hive_keychain) return;
+        for (const c of claims) {
+            const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
+            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
+        }
+    }, [user]);
+
+    return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
 };
