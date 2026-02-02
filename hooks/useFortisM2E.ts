@@ -256,7 +256,7 @@ export const useFortisM2E = () => {
                         if (tx.memo && tx.memo.startsWith('join:')) {
                             const joinedChallengeId = tx.memo.split(':')[1];
                             participants.push({
-                                account: tx.sender,
+                                account: tx.from,
                                 challengeId: joinedChallengeId,
                                 timestamp: new Date(tx.timestamp * 1000).toISOString(),
                                 paidFORTIS: tx.quantity
