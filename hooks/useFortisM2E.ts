@@ -274,15 +274,21 @@ export const useFortisM2E = () => {
                 });
 
                 // FORCE MANUAL INJECTION (As requested for @bastiensw)
-                // If the API fails to catch him for any reason, we add him manually for the Genesis challenge
+                // We dynamically find the Challenge ID by looking at other participants who are definitely in the Genesis challenge
                 const isBastienIncluded = participants.some(p => p.account === 'bastiensw');
                 if (!isBastienIncluded) {
-                    participants.push({
-                        account: 'bastiensw',
-                        challengeId: 'M2E-GENESIS-01', // Assuming this is the current challenge ID
-                        timestamp: new Date().toISOString(),
-                        paidFORTIS: '0.01'
-                    });
+                    const referenceParticipant = participants.find(p =>
+                        ['elprofetasw', 'hecatonquirox', 'markworkout'].includes(p.account)
+                    );
+
+                    if (referenceParticipant) {
+                        participants.push({
+                            account: 'bastiensw',
+                            challengeId: referenceParticipant.challengeId,
+                            timestamp: new Date().toISOString(),
+                            paidFORTIS: '0.01'
+                        });
+                    }
                 }
             } catch (e) {
                 console.error("Error fetching Hive Engine history:", e);
