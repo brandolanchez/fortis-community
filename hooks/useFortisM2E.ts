@@ -245,18 +245,26 @@ export const useFortisM2E = () => {
 
             // 1. Fetch Hive Engine History (Source of Truth for Token Payments)
             try {
-                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS');
-                const heHistory = await response.json();
+                // Fetch DAO history + Specific User history (to ensure he appears even if buried in DAO history)
+                // We fetch 'bastiensw' specifically as requested to force his appearance if valid
+                const [daoHistoryRes, userHistoryRes] = await Promise.all([
+                    fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS'),
+                    fetch('https://history.hive-engine.com/accountHistory?account=bastiensw&limit=50&symbol=FORTIS')
+                ]);
 
-                heHistory.forEach((tx: any) => {
+                const daoHistory = await daoHistoryRes.json();
+                const userHistory = await userHistoryRes.json();
+
+                // Combine histories (User history shows sender side)
+                const combinedHistory = [...daoHistory, ...userHistory];
+
+                combinedHistory.forEach((tx: any) => {
+                    // Valid Join Condition: Transfer to fortis.m2e with FORTIS and memo join:ID
                     if (tx.operation === 'tokens_transfer' && tx.to === 'fortis.m2e' && tx.symbol === 'FORTIS') {
-                        // Check memo for join:ID
-                        // Hive Engine history API structure might vary, usually fields are top level or in match object
-                        // tx structure: { ... , memo: "join:123", quantity: "0.01", sender: "user" ... }
                         if (tx.memo && tx.memo.startsWith('join:')) {
                             const joinedChallengeId = tx.memo.split(':')[1];
                             participants.push({
-                                account: tx.from,
+                                account: tx.from || tx.sender, // Support both field names if API varies
                                 challengeId: joinedChallengeId,
                                 timestamp: new Date(tx.timestamp * 1000).toISOString(),
                                 paidFORTIS: tx.quantity
