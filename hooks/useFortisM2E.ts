@@ -389,7 +389,7 @@ export const useFortisM2E = () => {
         try {
             // 1. Fetch Hive Engine Payment History (Outgoing FORTIS)
             try {
-                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=500&symbol=FORTIS');
+                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS');
                 const heHistory = await response.json();
 
                 heHistory.forEach((tx: any) => {
