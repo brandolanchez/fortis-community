@@ -92,17 +92,16 @@ export const useFortisM2E = () => {
                 setJoinedChallenges([]);
             }
 
-            // Check Faucet Status via 0.001 HBD beacon
+            // Check Faucet Status via Comment History on @fortis.m2e
             if (user) {
                 try {
                     const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
                     const claimed = history.some(tx => {
                         const op = tx[1].op;
-                        if (op[0] !== 'transfer' || op[1].to !== 'fortis.m2e' || op[1].amount !== '0.001 HBD') return false;
-                        try {
-                            const d = JSON.parse(op[1].memo);
-                            return d.action === 'faucet_claim' && op[1].from === user;
-                        } catch { return false; }
+                        return op[0] === 'comment' &&
+                            op[1].parent_author === 'fortis.m2e' &&
+                            op[1].parent_permlink === 'faucet-claim' &&
+                            op[1].author === user;
                     });
                     setHasClaimedFaucet(claimed);
                 } catch (e) {
@@ -251,17 +250,21 @@ export const useFortisM2E = () => {
     const claimAirdropFaucet = useCallback(async () => {
         if (!user || !window.hive_keychain || hasClaimedFaucet) return;
         return new Promise(r => {
-            // Use 0.001 HBD transfer for "on-chain notification" to @fortis.m2e
-            (window.hive_keychain as any).requestTransfer(
+            // Use COMMENT (Reply) - Costs only RC, visible in @fortis.m2e history
+            const permlink = `faucet-claim-${user}-${Date.now()}`;
+            (window.hive_keychain as any).requestPost(
                 user,
-                'fortis.m2e',
-                '0.001',
-                JSON.stringify({ action: 'faucet_claim', timestamp: new Date().toISOString() }),
-                'HBD',
+                "Solicitud de Faucet Fortis", // Title
+                "Claiming 20 FORTIS Airdrop", // Body
+                "fortis.m2e", // Parent Author
+                "faucet-claim", // Parent Permlink
+                JSON.stringify({ app: "fortis-m2e" }), // Json Metadata
+                permlink, // Permlink
+                null, // Use null or json_metadata string for multic
                 (res: any) => {
                     if (res.success) {
                         setHasClaimedFaucet(true);
-                        toast({ title: "Solicitud de Faucet Enviada", status: "success" });
+                        toast({ title: "Solicitud Enviada (Comentario RC)", status: "success" });
                     }
                     r(res.success);
                 }
@@ -269,18 +272,20 @@ export const useFortisM2E = () => {
         });
     }, [user, hasClaimedFaucet, toast]);
 
+    /**
+     * FETCH FAUCET CLAIMS (Admin)
+     * To find requests without knowing usernames, we scan recent blockchain blocks.
+     */
     const fetchFaucetClaims = useCallback(async () => {
         try {
             const h = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
             return h.filter(tx => {
                 const op = tx[1].op;
-                if (op[0] !== 'transfer' || op[1].to !== 'fortis.m2e' || op[1].amount !== '0.001 HBD') return false;
-                try {
-                    const d = JSON.parse(op[1].memo);
-                    return d.action === 'faucet_claim';
-                } catch { return false; }
+                return op[0] === 'comment' &&
+                    op[1].parent_author === 'fortis.m2e' &&
+                    op[1].parent_permlink === 'faucet-claim';
             }).map(tx => ({
-                account: tx[1].op[1].from,
+                account: tx[1].op[1].author,
                 timestamp: tx[1].timestamp
             }));
         } catch { return []; }

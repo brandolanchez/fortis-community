@@ -85,6 +85,7 @@ const AdminM2E = () => {
     const [newChallenge, setNewChallenge] = useState({ title: '', description: '', duration: 7, magnesiumType: 'standard' as MagnesiumType });
     const [selectedChallengeId, setSelectedChallengeId] = useState<string>('');
     const [rankings, setRankings] = useState<{ [key: string]: number }>({});
+    const [searchUser, setSearchUser] = useState('');
     const toast = useToast();
 
     useEffect(() => {
@@ -105,6 +106,19 @@ const AdminM2E = () => {
         setFaucetClaims(claims);
         if (challenges.length > 0) setSelectedChallengeId(challenges[0].id);
         setLoading(false);
+    };
+
+    const handleAddManualClaim = () => {
+        if (!searchUser) return;
+        const normalized = searchUser.replace('@', '').trim().toLowerCase();
+        if (faucetClaims.some(c => c.account === normalized)) return;
+
+        setFaucetClaims(prev => [{
+            account: normalized,
+            timestamp: new Date().toISOString()
+        }, ...prev]);
+        setSearchUser('');
+        toast({ title: "Usuario agregado a la lista", status: "info" });
     };
 
     const handleProcessFaucet = async () => {
@@ -425,9 +439,22 @@ const AdminM2E = () => {
 
                         <TabPanel px={0} pt={6}>
                             <Box bg="muted" p={6} borderRadius="2xl" border="1px solid" borderColor="whiteAlpha.100">
-                                <HStack mb={6} justify="space-between">
-                                    <Heading size="md">SOLICITUDES DE FAUCET</Heading>
-                                    <Button colorScheme="orange" leftIcon={<FaBolt />} onClick={handleProcessFaucet} isDisabled={faucetClaims.length === 0}>
+                                <HStack mb={6} justify="space-between" flexWrap="wrap">
+                                    <VStack align="flex-start" spacing={2} minW="300px">
+                                        <Heading size="md">SOLICITUDES DE FAUCET</Heading>
+                                        <Text fontSize="xs" color="gray.500">Escaneando últimos 100 bloques (5 min). Para usuarios antiguos, usa el buscador:</Text>
+                                        <HStack w="100%">
+                                            <Input
+                                                size="sm"
+                                                placeholder="Usuario (ej: brandolanchez)"
+                                                bg="blackAlpha.300"
+                                                value={searchUser}
+                                                onChange={(e) => setSearchUser(e.target.value)}
+                                            />
+                                            <Button size="sm" colorScheme="blue" onClick={handleAddManualClaim}>AÑADIR</Button>
+                                        </HStack>
+                                    </VStack>
+                                    <Button colorScheme="orange" leftIcon={<FaBolt />} onClick={handleProcessFaucet} isDisabled={faucetClaims.length === 0} mt={4}>
                                         PROCESAR TODOS (+20 FORTIS C/U)
                                     </Button>
                                 </HStack>
