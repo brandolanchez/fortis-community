@@ -246,20 +246,23 @@ export const useFortisM2E = () => {
             // 1. Fetch Hive Engine History (Source of Truth for Token Payments)
             try {
                 // Fetch DAO history + Specific User history (to ensure he appears even if buried in DAO history)
-                // We fetch 'bastiensw' specifically as requested to force his appearance if valid
-                const [daoHistoryRes, userHistoryRes] = await Promise.all([
+                // We fetch specific users as requested to force appearance if valid
+                const [daoHistoryRes, bastienRes, valecillosRes] = await Promise.all([
                     fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS'),
-                    fetch('https://history.hive-engine.com/accountHistory?account=bastiensw&limit=50&symbol=FORTIS')
+                    fetch('https://history.hive-engine.com/accountHistory?account=bastiensw&limit=50&symbol=FORTIS'),
+                    fetch('https://history.hive-engine.com/accountHistory?account=valecillos&limit=50&symbol=FORTIS')
                 ]);
 
                 const daoHistory = await daoHistoryRes.json();
-                const userHistory = await userHistoryRes.json();
+                const bastienHistory = await bastienRes.json();
+                const valecillosHistory = await valecillosRes.json();
 
                 // Combine histories (User history shows sender side)
-                const combinedHistory = [...daoHistory, ...userHistory];
+                const combinedHistory = [...daoHistory, ...bastienHistory, ...valecillosHistory];
 
                 combinedHistory.forEach((tx: any) => {
                     // Valid Join Condition: Transfer to fortis.m2e with FORTIS and memo join:ID
+                    // Also check for "transfer" contract action in custom_json if needed, but usually tokens_transfer op is standard
                     if (tx.operation === 'tokens_transfer' && tx.to === 'fortis.m2e' && tx.symbol === 'FORTIS') {
                         if (tx.memo && tx.memo.startsWith('join:')) {
                             const joinedChallengeId = tx.memo.split(':')[1];
@@ -273,22 +276,25 @@ export const useFortisM2E = () => {
                     }
                 });
 
-                // FORCE MANUAL INJECTION (As requested for @bastiensw)
+                // FORCE MANUAL INJECTION (As requested for @bastiensw and @valecillos)
                 // We dynamically find the Challenge ID by looking at other participants who are definitely in the Genesis challenge
-                const isBastienIncluded = participants.some(p => p.account === 'bastiensw');
-                if (!isBastienIncluded) {
-                    const referenceParticipant = participants.find(p =>
-                        ['elprofetasw', 'hecatonquirox', 'markworkout'].includes(p.account)
-                    );
+                const forcedUsers = ['bastiensw', 'valecillos'];
+                const referenceParticipant = participants.find(p =>
+                    ['elprofetasw', 'hecatonquirox', 'markworkout'].includes(p.account)
+                );
 
-                    if (referenceParticipant) {
-                        participants.push({
-                            account: 'bastiensw',
-                            challengeId: referenceParticipant.challengeId,
-                            timestamp: new Date().toISOString(),
-                            paidFORTIS: '0.01'
-                        });
-                    }
+                if (referenceParticipant) {
+                    forcedUsers.forEach(user => {
+                        const isIncluded = participants.some(p => p.account === user);
+                        if (!isIncluded) {
+                            participants.push({
+                                account: user,
+                                challengeId: referenceParticipant.challengeId,
+                                timestamp: new Date().toISOString(),
+                                paidFORTIS: '0.01' // Assumed paid
+                            });
+                        }
+                    });
                 }
             } catch (e) {
                 console.error("Error fetching Hive Engine history:", e);
