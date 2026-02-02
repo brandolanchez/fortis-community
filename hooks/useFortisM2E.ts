@@ -212,11 +212,20 @@ export const useFortisM2E = () => {
         }
 
         return new Promise<boolean>((resolve) => {
-            const json = { action: 'join', id: challengeId, type, timestamp: new Date().toISOString() };
-            (window.hive_keychain as any).requestCustomJson(
+            const json = {
+                contractName: "tokens",
+                contractAction: "transfer",
+                contractPayload: {
+                    symbol: "FORTIS",
+                    to: "fortis.m2e",
+                    quantity: "0.01",
+                    memo: `join:${challengeId}`
+                }
+            };
+            (window as any).hive_keychain.requestCustomJson(
                 user,
-                'fortis_m2e_join_challenge',
-                'Posting',
+                'ssc-mainnet-hive',
+                'Active',
                 JSON.stringify(json),
                 `Unirse al Reto #${challengeId}`,
                 (res: any) => {
@@ -238,7 +247,7 @@ export const useFortisM2E = () => {
             (history || []).forEach(tx => {
                 const op = tx[1].op;
 
-                // Check for custom_json joins (Magnesium-based challenges)
+                // Check for custom_json joins (Legacy or new if indexed)
                 if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_join_challenge') {
                     try {
                         const d = JSON.parse(op[1].json);
@@ -250,7 +259,7 @@ export const useFortisM2E = () => {
                     } catch { }
                 }
 
-                // Check for HE token transfers (FORTIS payment for airdrop challenges)
+                // Check for HE token transfers (FORTIS payment or join-memo)
                 if (op[0] === 'custom_json' && op[1].id === 'ssc-mainnet-hive') {
                     try {
                         const payload = JSON.parse(op[1].json);
@@ -269,24 +278,25 @@ export const useFortisM2E = () => {
                 }
             });
 
-            return participants.filter(e => !challengeId || e.challengeId === challengeId);
+            const unique = Array.from(new Map(participants.map(p => [p.account + p.challengeId, p])).values());
+            return unique.filter(e => !challengeId || e.challengeId === challengeId);
         } catch { return []; }
     }, []);
 
     const payoutRewards = useCallback(async (payouts: any[]) => {
-        if (!user || !window.hive_keychain) return;
+        if (!user || !(window as any).hive_keychain) return;
         for (const p of payouts) {
             const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: p.account, quantity: p.amount.toString(), memo: `Reward #${p.challengeId}` } };
-            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Paying ${p.account}`, () => setTimeout(r, 500)));
+            await new Promise(r => (window as any).hive_keychain.requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Paying ${p.account}`, () => setTimeout(r, 500)));
         }
         toast({ title: "Pagos completados", status: "success" });
     }, [user, toast]);
 
     const createChallenge = useCallback(async (title: string, desc: string, days = 7, type: MagnesiumType = 'standard') => {
-        if (!user || !window.hive_keychain) return;
+        if (!user || !(window as any).hive_keychain) return;
         const id = Date.now().toString();
         const json = { id, title, description: desc, durationDays: days, magnesiumType: type, timestamp: new Date().toISOString() };
-        return new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_challenge', 'Posting', JSON.stringify(json), `Create: ${title}`, (res: any) => r(res.success)));
+        return new Promise(r => (window as any).hive_keychain.requestCustomJson(user, 'fortis_m2e_challenge', 'Posting', JSON.stringify(json), `Create: ${title}`, (res: any) => r(res.success)));
     }, [user]);
 
     const fetchChallenges = useCallback(async () => {
@@ -301,9 +311,9 @@ export const useFortisM2E = () => {
     }, []);
 
     const saveRanking = useCallback(async (id: string, ranking: any[]) => {
-        if (!user || !window.hive_keychain) return;
+        if (!user || !(window as any).hive_keychain) return;
         const json = { challenge_id: id, ranking, timestamp: new Date().toISOString() };
-        return new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'fortis_m2e_results', 'Posting', JSON.stringify(json), `Save #${id}`, (res: any) => r(res.success)));
+        return new Promise(r => (window as any).hive_keychain.requestCustomJson(user, 'fortis_m2e_results', 'Posting', JSON.stringify(json), `Save #${id}`, (res: any) => r(res.success)));
     }, [user]);
 
     const fetchRankings = useCallback(async (id?: string) => {
@@ -321,14 +331,14 @@ export const useFortisM2E = () => {
     const claimAirdropFaucet = useCallback(async () => {
         console.log("--- FAUCET CLAIM ATTEMPT ---");
         console.log("User:", user);
-        console.log("Keychain detected:", !!window.hive_keychain);
+        console.log("Keychain detected:", !!(typeof window !== 'undefined' && (window as any).hive_keychain));
         console.log("Already Claimed:", hasClaimedFaucet);
 
         if (!user) {
             toast({ title: "Error: No hay usuario logueado", status: "error" });
             return;
         }
-        if (!window.hive_keychain) {
+        if (typeof window === 'undefined' || !(window as any).hive_keychain) {
             toast({ title: "Error: Hive Keychain no detectado", status: "error" });
             return;
         }
@@ -342,7 +352,7 @@ export const useFortisM2E = () => {
             // This is safer than requestPost which seems to fail silently for some users/params
             const json = { account: user, app: "fortis-m2e", timestamp: new Date().toISOString() };
             console.log("Requesting custom_json:", json);
-            (window.hive_keychain as any).requestCustomJson(
+            (window as any).hive_keychain.requestCustomJson(
                 user,
                 'fortis_m2e_faucet_claim',
                 'Posting',
@@ -367,10 +377,10 @@ export const useFortisM2E = () => {
         const claims: any[] = [];
         const paidUsers = new Set<string>(); // Track users who got paid recently
         try {
-            // Scan last 500 blocks (~25 mins) to find recent claims
+            // Scan last 2000 blocks (~100 mins) to find recent claims
             const props = await getHiveClient().database.getDynamicGlobalProperties();
             const lastBlock = props.head_block_number;
-            const BLOCKS_TO_SCAN = 500;
+            const BLOCKS_TO_SCAN = 2000;
 
             const blocks = await Promise.all(
                 Array.from({ length: BLOCKS_TO_SCAN }, (_, i) => lastBlock - i)
