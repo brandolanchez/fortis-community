@@ -180,10 +180,19 @@ export const useFortisM2E = () => {
         if (magnesium[type] < cost) return false;
 
         return new Promise<boolean>((resolve) => {
-            (window.hive_keychain as any).requestTransfer(user, 'fortis.m2e', '0.001', JSON.stringify({ action: 'join', id: challengeId, type }), 'HBD', (res: any) => {
-                if (res.success) resolve(consumeMagnesium(amount, type, challengeId));
-                else resolve(false);
-            });
+            // Updated to use custom_json (RC only) instead of 0.001 HBD transfer
+            const json = { action: 'join', id: challengeId, type, timestamp: new Date().toISOString() };
+            (window.hive_keychain as any).requestCustomJson(
+                user,
+                'fortis_m2e_join_challenge',
+                'Posting',
+                JSON.stringify(json),
+                `Unirse al Reto #${challengeId}`,
+                (res: any) => {
+                    if (res.success) resolve(consumeMagnesium(amount, type, challengeId));
+                    else resolve(false);
+                }
+            );
         });
     }, [user, magnesium, costMultiplier, consumeMagnesium]);
 
@@ -191,11 +200,11 @@ export const useFortisM2E = () => {
         try {
             const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
             return history
-                .filter(tx => tx[1].op[0] === 'transfer' && tx[1].op[1].to === 'fortis.m2e' && tx[1].op[1].amount === '0.001 HBD')
+                .filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_join_challenge')
                 .map(tx => {
                     try {
-                        const d = JSON.parse(tx[1].op[1].memo);
-                        return { account: tx[1].op[1].from, challengeId: d.id, timestamp: d.timestamp || tx[1].timestamp };
+                        const d = JSON.parse(tx[1].op[1].json);
+                        return { account: tx[1].op[1].required_posting_auths[0], challengeId: d.id, timestamp: d.timestamp || tx[1].timestamp };
                     } catch { return null; }
                 })
                 .filter(e => e !== null && (!challengeId || e.challengeId === challengeId));
