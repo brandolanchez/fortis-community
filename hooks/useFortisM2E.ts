@@ -304,6 +304,7 @@ export const useFortisM2E = () => {
      */
     const fetchFaucetClaims = useCallback(async () => {
         const claims: any[] = [];
+        const paidUsers = new Set<string>(); // Track users who got paid recently
         try {
             // Scan last 500 blocks (~25 mins) to find recent claims
             const props = await hiveClient.database.getDynamicGlobalProperties();
@@ -319,6 +320,7 @@ export const useFortisM2E = () => {
                 if (!block) return;
                 block.transactions.forEach(tx => {
                     tx.operations.forEach(op => {
+                        // 1. Detect Claims
                         if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_faucet_claim') {
                             try {
                                 const data = JSON.parse(op[1].json);
@@ -328,13 +330,25 @@ export const useFortisM2E = () => {
                                 });
                             } catch (e) { }
                         }
+                        // 2. Detect Payouts (ssc-mainnet-hive transfer with "Faucet" in memo)
+                        if (op[0] === 'custom_json' && op[1].id === 'ssc-mainnet-hive') {
+                            try {
+                                const payload = JSON.parse(op[1].json);
+                                if (payload.contractAction === 'transfer' &&
+                                    (payload.contractPayload.memo?.includes('Faucet') || payload.contractPayload.memo?.includes('Airdrop'))) {
+                                    paidUsers.add(payload.contractPayload.to);
+                                }
+                            } catch (e) { }
+                        }
                     });
                 });
             });
 
-            // Remove duplicates and sort newest first
+            // Filter out claims that have already been paid (based on recent history)
             const unique = Array.from(new Map(claims.map(c => [c.account, c])).values());
-            return unique.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            return unique
+                .filter(c => !paidUsers.has(c.account))
+                .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         } catch (error) {
             console.error("Error scanning blockchain:", error);
             return [];

@@ -55,7 +55,7 @@ export default function Sidebar() {
             if (user) {
                 try {
                     const newNotifications = await fetchNewNotifications(user);
-                    setNotifications(newNotifications);
+                    setNotifications(newNotifications || []);
                 } catch (error) {
                     console.error("Failed to fetch notifications:", error);
                 }
