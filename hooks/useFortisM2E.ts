@@ -245,7 +245,7 @@ export const useFortisM2E = () => {
 
             // 1. Fetch Hive Engine History (Source of Truth for Token Payments)
             try {
-                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=500&symbol=FORTIS');
+                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS');
                 const heHistory = await response.json();
 
                 heHistory.forEach((tx: any) => {
