@@ -241,42 +241,50 @@ export const useFortisM2E = () => {
 
     const fetchParticipants = useCallback(async (challengeId?: string) => {
         try {
-            const history = await getHiveClient().database.getAccountHistory('fortis.m2e', -1, 1000);
             const participants: any[] = [];
 
-            (history || []).forEach(tx => {
-                const op = tx[1].op;
+            // 1. Fetch Hive Engine History (Source of Truth for Token Payments)
+            try {
+                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=500&symbol=FORTIS');
+                const heHistory = await response.json();
 
-                // Check for custom_json joins (Legacy or new if indexed)
-                if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_join_challenge') {
-                    try {
-                        const d = JSON.parse(op[1].json);
-                        participants.push({
-                            account: op[1].required_posting_auths[0],
-                            challengeId: d.id,
-                            timestamp: d.timestamp || tx[1].timestamp
-                        });
-                    } catch { }
-                }
-
-                // Check for HE token transfers (FORTIS payment or join-memo)
-                if (op[0] === 'custom_json' && op[1].id === 'ssc-mainnet-hive') {
-                    try {
-                        const payload = JSON.parse(op[1].json);
-                        if (payload.contractAction === 'transfer' &&
-                            payload.contractPayload.symbol === 'FORTIS' &&
-                            payload.contractPayload.memo?.startsWith('join:')) {
-                            const joinedChallengeId = payload.contractPayload.memo.split(':')[1];
+                heHistory.forEach((tx: any) => {
+                    if (tx.operation === 'tokens_transfer' && tx.to === 'fortis.m2e' && tx.symbol === 'FORTIS') {
+                        // Check memo for join:ID
+                        // Hive Engine history API structure might vary, usually fields are top level or in match object
+                        // tx structure: { ... , memo: "join:123", quantity: "0.01", sender: "user" ... }
+                        if (tx.memo && tx.memo.startsWith('join:')) {
+                            const joinedChallengeId = tx.memo.split(':')[1];
                             participants.push({
-                                account: op[1].required_auths[0],
+                                account: tx.sender,
                                 challengeId: joinedChallengeId,
-                                timestamp: tx[1].timestamp,
-                                paidFORTIS: payload.contractPayload.quantity
+                                timestamp: new Date(tx.timestamp * 1000).toISOString(),
+                                paidFORTIS: tx.quantity
                             });
                         }
-                    } catch { }
-                }
-            });
+                    }
+                });
+            } catch (e) {
+                console.error("Error fetching Hive Engine history:", e);
+            }
+
+            // 2. Legacy: Fetch Layer 1 History for old custom_json (optional, keeping for safety)
+            try {
+                const history = await getHiveClient().database.getAccountHistory('fortis.m2e', -1, 1000);
+                (history || []).forEach(tx => {
+                    const op = tx[1].op;
+                    if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_join_challenge') {
+                        try {
+                            const d = JSON.parse(op[1].json);
+                            participants.push({
+                                account: op[1].required_posting_auths[0],
+                                challengeId: d.id,
+                                timestamp: d.timestamp || tx[1].timestamp
+                            });
+                        } catch { }
+                    }
+                });
+            } catch (e) { console.error("Error fetching L1 history:", e); }
 
             const unique = Array.from(new Map(participants.map(p => [p.account + p.challengeId, p])).values());
             return unique.filter(e => !challengeId || e.challengeId === challengeId);
