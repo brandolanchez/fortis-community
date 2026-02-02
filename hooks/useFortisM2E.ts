@@ -257,10 +257,28 @@ export const useFortisM2E = () => {
     }, []);
 
     const claimAirdropFaucet = useCallback(async () => {
-        if (!user || !window.hive_keychain || hasClaimedFaucet) return;
+        console.log("--- FAUCET CLAIM ATTEMPT ---");
+        console.log("User:", user);
+        console.log("Keychain detected:", !!window.hive_keychain);
+        console.log("Already Claimed:", hasClaimedFaucet);
+
+        if (!user) {
+            toast({ title: "Error: No hay usuario logueado", status: "error" });
+            return;
+        }
+        if (!window.hive_keychain) {
+            toast({ title: "Error: Hive Keychain no detectado", status: "error" });
+            return;
+        }
+        if (hasClaimedFaucet) {
+            toast({ title: "Error: Ya reclamaste el faucet", status: "warning" });
+            return;
+        }
+
         return new Promise(r => {
             // Use COMMENT (Reply) - Costs only RC, visible in @fortis.m2e history
             const permlink = `faucet-claim-${user}-${Date.now()}`;
+            console.log("Requesting post with permlink:", permlink);
             (window.hive_keychain as any).requestPost(
                 user,
                 "Solicitud de Faucet Fortis", // Title
