@@ -4,9 +4,11 @@ import { useToast } from '@chakra-ui/react';
 import { Client } from '@hiveio/dhive';
 
 const HIVE_RPC_NODES = [
-    'https://api.hive.blog',
     'https://api.deathwing.me',
-    'https://hive-api.arcange.eu'
+    'https://api.openhive.network',
+    'https://api.hive.blog',
+    'https://rpc.mahdiyari.info',
+    'https://api.syncad.com'
 ];
 const hiveClient = new Client(HIVE_RPC_NODES);
 
@@ -92,16 +94,15 @@ export const useFortisM2E = () => {
                 setJoinedChallenges([]);
             }
 
-            // Check Faucet Status via Comment History on @fortis.m2e
+            // Check Faucet Status via Custom JSON (RC)
+            // We check the USER'S history, because custom_json only appears in the sender's history
             if (user) {
                 try {
-                    const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
+                    const history = await hiveClient.database.getAccountHistory(user, -1, 1000);
                     const claimed = (history || []).some(tx => {
                         const op = tx[1].op;
-                        return op[0] === 'comment' &&
-                            op[1].parent_author === 'fortis.m2e' &&
-                            op[1].parent_permlink === 'faucet-claim' &&
-                            op[1].author === user;
+                        return op[0] === 'custom_json' &&
+                            op[1].id === 'fortis_m2e_faucet_claim';
                     });
                     setHasClaimedFaucet(claimed);
                 } catch (e) {
@@ -276,22 +277,20 @@ export const useFortisM2E = () => {
         }
 
         return new Promise(r => {
-            // Use COMMENT (Reply) - Costs only RC, visible in @fortis.m2e history
-            const permlink = `faucet-claim-${user}-${Date.now()}`;
-            console.log("Requesting post with permlink:", permlink);
-            (window.hive_keychain as any).requestPost(
+            // Use custom_json (Posting Authority) - Costs only RC, no HBD/HIVE needed
+            // This is safer than requestPost which seems to fail silently for some users/params
+            const json = { account: user, app: "fortis-m2e", timestamp: new Date().toISOString() };
+            console.log("Requesting custom_json:", json);
+            (window.hive_keychain as any).requestCustomJson(
                 user,
-                "Solicitud de Faucet Fortis", // Title
-                "Claiming 20 FORTIS Airdrop", // Body
-                "fortis.m2e", // Parent Author
-                "faucet-claim", // Parent Permlink
-                JSON.stringify({ app: "fortis-m2e" }), // Json Metadata
-                permlink, // Permlink
-                null, // Use null or json_metadata string for multic
+                'fortis_m2e_faucet_claim',
+                'Posting',
+                JSON.stringify(json),
+                "Solicitar 20 FORTIS (Faucet)",
                 (res: any) => {
                     if (res.success) {
                         setHasClaimedFaucet(true);
-                        toast({ title: "Solicitud Enviada (Comentario RC)", status: "success" });
+                        toast({ title: "Solicitud Enviada (RC)", status: "success" });
                     }
                     r(res.success);
                 }
@@ -304,18 +303,42 @@ export const useFortisM2E = () => {
      * To find requests without knowing usernames, we scan recent blockchain blocks.
      */
     const fetchFaucetClaims = useCallback(async () => {
+        const claims: any[] = [];
         try {
-            const h = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-            return (h || []).filter(tx => {
-                const op = tx[1].op;
-                return op[0] === 'comment' &&
-                    op[1].parent_author === 'fortis.m2e' &&
-                    op[1].parent_permlink === 'faucet-claim';
-            }).map(tx => ({
-                account: tx[1].op[1].author,
-                timestamp: tx[1].timestamp
-            }));
-        } catch { return []; }
+            // Scan last 500 blocks (~25 mins) to find recent claims
+            const props = await hiveClient.database.getDynamicGlobalProperties();
+            const lastBlock = props.head_block_number;
+            const BLOCKS_TO_SCAN = 500;
+
+            const blocks = await Promise.all(
+                Array.from({ length: BLOCKS_TO_SCAN }, (_, i) => lastBlock - i)
+                    .map(num => hiveClient.database.getBlock(num))
+            );
+
+            blocks.forEach(block => {
+                if (!block) return;
+                block.transactions.forEach(tx => {
+                    tx.operations.forEach(op => {
+                        if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_faucet_claim') {
+                            try {
+                                const data = JSON.parse(op[1].json);
+                                claims.push({
+                                    account: op[1].required_posting_auths[0] || data.account,
+                                    timestamp: block.timestamp
+                                });
+                            } catch (e) { }
+                        }
+                    });
+                });
+            });
+
+            // Remove duplicates and sort newest first
+            const unique = Array.from(new Map(claims.map(c => [c.account, c])).values());
+            return unique.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        } catch (error) {
+            console.error("Error scanning blockchain:", error);
+            return [];
+        }
     }, []);
 
     const payoutFaucet = useCallback(async (claims: any[]) => {

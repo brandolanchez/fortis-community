@@ -226,7 +226,7 @@ export default function Sidebar() {
                                         w="full"
                                         justifyContent={iconJustify}
                                         leftIcon={
-                                            notifications.length > 0 ? (
+                                            (notifications || []).length > 0 ? (
                                                 <motion.div
                                                     animate={{ rotate: [0, 45, 0, -45, 0] }}
                                                     transition={{ duration: 0.6, repeat: Infinity }}
