@@ -4,13 +4,13 @@ import { Box, Text, Stack, Spinner, Button, HStack } from '@chakra-ui/react';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { KeychainKeyTypes } from 'keychain-sdk';
 import { Notifications } from '@hiveio/dhive';
-import NotificationItem from './NotificationItem'; 
+import NotificationItem from './NotificationItem';
 
 interface NotificationCompProps {
   username: string
 }
 
-export default function NotificationsComp({ username } : NotificationCompProps) {
+export default function NotificationsComp({ username }: NotificationCompProps) {
   const { user } = useKeychain();
   const [notifications, setNotifications] = useState<Notifications[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Add isLoading state
@@ -19,13 +19,13 @@ export default function NotificationsComp({ username } : NotificationCompProps) 
     const loadNotifications = async () => {
       if (user) {
         try {
-          setIsLoading(true); 
+          setIsLoading(true);
           const newNotifications = await fetchNewNotifications(username);
-          setNotifications(newNotifications);
+          setNotifications(newNotifications || []);
         } catch (error) {
           console.error("Failed to fetch notifications:", error);
         } finally {
-          setIsLoading(false); 
+          setIsLoading(false);
         }
       }
     };
@@ -33,10 +33,10 @@ export default function NotificationsComp({ username } : NotificationCompProps) 
     loadNotifications();
   }, [user, username]);
 
-  async function handleMarkAsRead () {
+  async function handleMarkAsRead() {
     if (!user) return;
-    
-    const now = new Date().toISOString(); 
+
+    const now = new Date().toISOString();
     const json = JSON.stringify(["setLastRead", { date: now }]);
     const result = await broadcastWithKeychain(user, [
       ['custom_json', {
@@ -51,16 +51,16 @@ export default function NotificationsComp({ username } : NotificationCompProps) 
 
   return (
     <Box p={4} w="full">
-    <HStack mb={4} spacing={4} align="center" justify="space-between">
-      <Text fontSize="2xl" fontWeight="bold">
-        Notifications
-      </Text>
-      {(user == username) && (
-        <Button onClick={handleMarkAsRead} size="sm">
-          Mark as Read
-        </Button>
-      )}
-    </HStack>
+      <HStack mb={4} spacing={4} align="center" justify="space-between">
+        <Text fontSize="2xl" fontWeight="bold">
+          Notifications
+        </Text>
+        {(user == username) && (
+          <Button onClick={handleMarkAsRead} size="sm">
+            Mark as Read
+          </Button>
+        )}
+      </HStack>
       {isLoading ? (
         <Spinner size="lg" />
       ) : notifications.length > 0 ? (
