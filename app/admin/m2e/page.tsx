@@ -79,7 +79,7 @@ const AdminM2E = () => {
     } = useFortisM2E();
     const [participants, setParticipants] = useState<any[]>([]);
     const [blockchainChallenges, setBlockchainChallenges] = useState<any[]>([]);
-    const [faucetClaims, setFaucetClaims] = useState<any[]>([]);
+    const [faucetClaims, setFaucetClaims] = useState<{ pending: any[], history: any[] }>({ pending: [], history: [] });
     const [loading, setLoading] = useState(true);
     const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
     const [newChallenge, setNewChallenge] = useState({ title: '', description: '', duration: 7, magnesiumType: 'standard' as MagnesiumType });
@@ -111,21 +111,24 @@ const AdminM2E = () => {
     const handleAddManualClaim = () => {
         if (!searchUser) return;
         const normalized = searchUser.replace('@', '').trim().toLowerCase();
-        if (faucetClaims.some(c => c.account === normalized)) return;
+        if (faucetClaims.pending.some(c => c.account === normalized)) return;
 
-        setFaucetClaims(prev => [{
-            account: normalized,
-            timestamp: new Date().toISOString()
-        }, ...prev]);
+        setFaucetClaims(prev => ({
+            ...prev,
+            pending: [{
+                account: normalized,
+                timestamp: new Date().toISOString()
+            }, ...prev.pending]
+        }));
         setSearchUser('');
         toast({ title: "Usuario agregado a la lista", status: "info" });
     };
 
     const handleProcessFaucet = async () => {
-        if (faucetClaims.length === 0) return;
-        const confirmAction = window.confirm(`¿Distribuir 20 FORTIS a cada uno de los ${faucetClaims.length} atletas?`);
+        if (faucetClaims.pending.length === 0) return;
+        const confirmAction = window.confirm(`¿Distribuir 20 FORTIS a cada uno de los ${faucetClaims.pending.length} atletas?`);
         if (!confirmAction) return;
-        await payoutFaucet(faucetClaims);
+        await payoutFaucet(faucetClaims.pending);
         await loadInitialData();
     };
 
@@ -441,60 +444,107 @@ const AdminM2E = () => {
                             <Box bg="muted" p={6} borderRadius="2xl" border="1px solid" borderColor="whiteAlpha.100">
                                 <HStack mb={6} justify="space-between" flexWrap="wrap">
                                     <VStack align="flex-start" spacing={2} minW="300px">
-                                        <Heading size="md">SOLICITUDES DE FAUCET</Heading>
-                                        <Text fontSize="xs" color="gray.500">Escaneando últimos 100 bloques (5 min). Para usuarios antiguos, usa el buscador:</Text>
-                                        <HStack w="100%">
-                                            <Input
-                                                size="sm"
-                                                placeholder="Usuario (ej: brandolanchez)"
-                                                bg="blackAlpha.300"
-                                                value={searchUser}
-                                                onChange={(e) => setSearchUser(e.target.value)}
-                                            />
-                                            <Button size="sm" colorScheme="blue" onClick={handleAddManualClaim}>AÑADIR</Button>
-                                        </HStack>
+                                        <Heading size="md">CONTROL DE FAUCET</Heading>
+                                        <Text fontSize="xs" color="gray.500">Gestión de airdrops y reclamos de FORTIS gratuitos.</Text>
                                     </VStack>
-                                    <Button colorScheme="orange" leftIcon={<FaBolt />} onClick={handleProcessFaucet} isDisabled={faucetClaims.length === 0} mt={4}>
-                                        PROCESAR TODOS (+20 FORTIS C/U)
-                                    </Button>
+                                    <HStack>
+                                        <Input
+                                            size="sm"
+                                            placeholder="Usuario manual (ej: brandolanchez)"
+                                            bg="blackAlpha.300"
+                                            value={searchUser}
+                                            onChange={(e) => setSearchUser(e.target.value)}
+                                            w="200px"
+                                        />
+                                        <Button size="sm" colorScheme="blue" onClick={handleAddManualClaim}>+ AÑADIR</Button>
+                                    </HStack>
                                 </HStack>
 
-                                <Box overflowX="auto">
-                                    <Table variant="simple">
-                                        <Thead>
-                                            <Tr>
-                                                <Th color="gray.500">ATLETA</Th>
-                                                <Th color="gray.500">FECHA SOLICITUD</Th>
-                                                <Th color="gray.500">ESTADO</Th>
-                                            </Tr>
-                                        </Thead>
-                                        <Tbody>
-                                            {faucetClaims.map((claim, idx) => (
-                                                <Tr key={idx}>
-                                                    <Td>
-                                                        <HStack>
-                                                            <Avatar size="xs" src={getHiveAvatarUrl(claim.account)} name={claim.account} />
-                                                            <Text fontWeight="bold">@{claim.account}</Text>
-                                                        </HStack>
-                                                    </Td>
-                                                    <Td fontSize="xs" color="gray.500">
-                                                        {new Date(claim.timestamp).toLocaleString()}
-                                                    </Td>
-                                                    <Td>
-                                                        <Badge colorScheme="orange" variant="subtle">PENDIENTE</Badge>
-                                                    </Td>
-                                                </Tr>
-                                            ))}
-                                            {faucetClaims.length === 0 && (
-                                                <Tr>
-                                                    <Td colSpan={3} textAlign="center" py={10} color="gray.500">
-                                                        No hay solicitudes de Faucet pendientes.
-                                                    </Td>
-                                                </Tr>
-                                            )}
-                                        </Tbody>
-                                    </Table>
-                                </Box>
+                                <Tabs variant="soft-rounded" colorScheme="orange" size="sm">
+                                    <TabList mb={4}>
+                                        <Tab>⏳ PENDIENTES ({faucetClaims.pending.length})</Tab>
+                                        <Tab>📜 HISTORIAL DE PAGOS</Tab>
+                                    </TabList>
+
+                                    <TabPanels>
+                                        {/* PENDIENTES */}
+                                        <TabPanel px={0}>
+                                            <HStack justify="flex-end" mb={2}>
+                                                <Button colorScheme="green" leftIcon={<FaBolt />} onClick={handleProcessFaucet} isDisabled={faucetClaims.pending.length === 0} size="sm">
+                                                    PAGAR TODOS ({faucetClaims.pending.length})
+                                                </Button>
+                                            </HStack>
+                                            <Box overflowX="auto">
+                                                <Table variant="simple" size="sm">
+                                                    <Thead>
+                                                        <Tr>
+                                                            <Th>ATLETA</Th>
+                                                            <Th>SOLICITADO</Th>
+                                                            <Th>ESTADO</Th>
+                                                        </Tr>
+                                                    </Thead>
+                                                    <Tbody>
+                                                        {faucetClaims.pending.map((claim: any, idx: number) => (
+                                                            <Tr key={idx}>
+                                                                <Td>
+                                                                    <HStack>
+                                                                        <Avatar size="xs" src={getHiveAvatarUrl(claim.account)} name={claim.account} />
+                                                                        <Text fontWeight="bold">@{claim.account}</Text>
+                                                                    </HStack>
+                                                                </Td>
+                                                                <Td fontSize="xs" color="gray.400">{new Date(claim.timestamp).toLocaleString()}</Td>
+                                                                <Td><Badge colorScheme="orange">PENDIENTE</Badge></Td>
+                                                            </Tr>
+                                                        ))}
+                                                        {faucetClaims.pending.length === 0 && (
+                                                            <Tr><Td colSpan={3} textAlign="center" py={6} color="gray.500">No hay solicitudes pendientes.</Td></Tr>
+                                                        )}
+                                                    </Tbody>
+                                                </Table>
+                                            </Box>
+                                        </TabPanel>
+
+                                        {/* HISTORIAL */}
+                                        <TabPanel px={0}>
+                                            <Box overflowX="auto" maxH="400px" overflowY="auto">
+                                                <Table variant="simple" size="sm">
+                                                    <Thead>
+                                                        <Tr>
+                                                            <Th>DESTINATARIO</Th>
+                                                            <Th>CANTIDAD</Th>
+                                                            <Th>FECHA PAGO</Th>
+                                                            <Th>TX ID</Th>
+                                                        </Tr>
+                                                    </Thead>
+                                                    <Tbody>
+                                                        {faucetClaims.history.map((tx: any, idx: number) => (
+                                                            <Tr key={idx}>
+                                                                <Td>
+                                                                    <HStack>
+                                                                        <Avatar size="xs" src={getHiveAvatarUrl(tx.account)} name={tx.account} />
+                                                                        <Text>@{tx.account}</Text>
+                                                                    </HStack>
+                                                                </Td>
+                                                                <Td>
+                                                                    <Text color="green.300" fontWeight="bold">{tx.amount} {tx.symbol}</Text>
+                                                                </Td>
+                                                                <Td fontSize="xs" color="gray.400">{new Date(tx.timestamp).toLocaleString()}</Td>
+                                                                <Td>
+                                                                    <Text fontSize="xs" fontFamily="monospace" color="gray.500" maxW="100px" isTruncated title={tx.txId}>
+                                                                        {tx.txId}
+                                                                    </Text>
+                                                                </Td>
+                                                            </Tr>
+                                                        ))}
+                                                        {faucetClaims.history.length === 0 && (
+                                                            <Tr><Td colSpan={4} textAlign="center" py={6} color="gray.500">No hay historial de pagos disponible.</Td></Tr>
+                                                        )}
+                                                    </Tbody>
+                                                </Table>
+                                            </Box>
+                                        </TabPanel>
+                                    </TabPanels>
+                                </Tabs>
                             </Box>
                         </TabPanel>
                     </TabPanels>

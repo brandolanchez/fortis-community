@@ -382,10 +382,32 @@ export const useFortisM2E = () => {
      * To find requests without knowing usernames, we scan recent blockchain blocks.
      */
     const fetchFaucetClaims = useCallback(async () => {
-        const claims: any[] = [];
-        const paidUsers = new Set<string>(); // Track users who got paid recently
+        const historyClaims: any[] = [];
+        const pendingClaims: any[] = [];
+        const paidUsersMap = new Set<string>();
+
         try {
-            // Scan last 2000 blocks (~100 mins) to find recent claims
+            // 1. Fetch Hive Engine Payment History (Outgoing FORTIS)
+            try {
+                const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=500&symbol=FORTIS');
+                const heHistory = await response.json();
+
+                heHistory.forEach((tx: any) => {
+                    if (tx.operation === 'tokens_transfer' && tx.from === 'fortis.m2e' && tx.symbol === 'FORTIS') {
+                        historyClaims.push({
+                            account: tx.to,
+                            amount: tx.quantity,
+                            symbol: tx.symbol,
+                            timestamp: new Date(tx.timestamp * 1000).toISOString(),
+                            memo: tx.memo,
+                            txId: tx.transactionId
+                        });
+                        paidUsersMap.add(tx.to);
+                    }
+                });
+            } catch (e) { console.error("Error fetching HE history for faucet:", e); }
+
+            // 2. Scan Blocks for Pending Requests (Last ~2000 blocks)
             const props = await getHiveClient().database.getDynamicGlobalProperties();
             const lastBlock = props.head_block_number;
             const BLOCKS_TO_SCAN = 2000;
@@ -396,51 +418,49 @@ export const useFortisM2E = () => {
             );
 
             blocks.forEach(block => {
-                if (!block) return;
-                block.transactions.forEach(tx => {
-                    tx.operations.forEach(op => {
-                        // 1. Detect Claims
+                if (!block || !block.transactions) return;
+                block.transactions.forEach((tx: any) => {
+                    tx.operations.forEach((op: any) => {
                         if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_faucet_claim') {
-                            try {
-                                const data = JSON.parse(op[1].json);
-                                claims.push({
-                                    account: op[1].required_posting_auths[0] || data.account,
+                            const user = op[1].required_posting_auths[0];
+                            // Only add if NOT in paid history
+                            if (!paidUsersMap.has(user)) {
+                                pendingClaims.push({
+                                    account: user,
                                     timestamp: block.timestamp
                                 });
-                            } catch (e) { }
-                        }
-                        // 2. Detect Payouts (ssc-mainnet-hive transfer with "Faucet" in memo)
-                        if (op[0] === 'custom_json' && op[1].id === 'ssc-mainnet-hive') {
-                            try {
-                                const payload = JSON.parse(op[1].json);
-                                if (payload.contractAction === 'transfer' &&
-                                    (payload.contractPayload.memo?.includes('Faucet') || payload.contractPayload.memo?.includes('Airdrop'))) {
-                                    paidUsers.add(payload.contractPayload.to);
-                                }
-                            } catch (e) { }
+                            }
                         }
                     });
                 });
             });
 
-            // Filter out claims that have already been paid (based on recent history)
-            const unique = Array.from(new Map(claims.map(c => [c.account, c])).values());
-            return unique
-                .filter(c => !paidUsers.has(c.account))
-                .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        } catch (error) {
-            console.error("Error scanning blockchain:", error);
-            return [];
+            // unique pending
+            const uniquePending = Array.from(new Map(pendingClaims.map(p => [p.account, p])).values());
+
+            return {
+                history: historyClaims,
+                pending: uniquePending
+            };
+
+        } catch (e) {
+            console.error("Error fetching faucet claims:", e);
+            return { history: [], pending: [] };
         }
     }, []);
+} catch (error) {
+    console.error("Error scanning blockchain:", error);
+    return [];
+}
+    }, []);
 
-    const payoutFaucet = useCallback(async (claims: any[]) => {
-        if (!user || !window.hive_keychain) return;
-        for (const c of claims) {
-            const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
-            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
-        }
-    }, [user]);
+const payoutFaucet = useCallback(async (claims: any[]) => {
+    if (!user || !window.hive_keychain) return;
+    for (const c of claims) {
+        const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
+        await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
+    }
+}, [user]);
 
-    return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
+return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
 };
