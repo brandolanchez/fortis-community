@@ -410,7 +410,7 @@ export const useFortisM2E = () => {
             // 2. Scan Blocks for Pending Requests (Last ~2000 blocks)
             const props = await getHiveClient().database.getDynamicGlobalProperties();
             const lastBlock = props.head_block_number;
-            const BLOCKS_TO_SCAN = 2000;
+            const BLOCKS_TO_SCAN = 5000;
 
             const blocks = await Promise.all(
                 Array.from({ length: BLOCKS_TO_SCAN }, (_, i) => lastBlock - i)
