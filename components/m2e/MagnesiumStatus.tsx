@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import {
     Box,
@@ -114,6 +115,7 @@ const MagnesiumStatus = () => {
                         leftIcon={<Icon as={FaPlus} />}
                         onClick={() => (reloadMagnesium as any)(type)}
                         isLoading={isReloading}
+                        isDisabled={type === 'airdrop' && currentMagnesium >= 1}
                         fontSize="9px"
                         fontWeight="black"
                         _hover={{ transform: 'scale(1.05)' }}

@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { useToast } from '@chakra-ui/react';
@@ -10,7 +11,13 @@ const HIVE_RPC_NODES = [
     'https://rpc.mahdiyari.info',
     'https://api.syncad.com'
 ];
-const hiveClient = new Client(HIVE_RPC_NODES);
+let hiveClientInstance: Client | null = null;
+const getHiveClient = () => {
+    if (!hiveClientInstance) {
+        hiveClientInstance = new Client(HIVE_RPC_NODES);
+    }
+    return hiveClientInstance;
+};
 
 export type MagnesiumType = 'standard' | 'aged' | 'gold' | 'airdrop';
 
@@ -98,7 +105,7 @@ export const useFortisM2E = () => {
             // We check the USER'S history, because custom_json only appears in the sender's history
             if (user) {
                 try {
-                    const history = await hiveClient.database.getAccountHistory(user, -1, 1000);
+                    const history = await getHiveClient().database.getAccountHistory(user, -1, 1000);
                     const claimed = (history || []).some(tx => {
                         const op = tx[1].op;
                         return op[0] === 'custom_json' &&
@@ -138,8 +145,18 @@ export const useFortisM2E = () => {
         const costs: any = { standard: '1.000', aged: '3.000', gold: '5.000', airdrop: '20.000' };
 
         try {
-            if (window.hive_keychain) {
+            if (typeof window !== 'undefined' && (window as any).hive_keychain) {
                 if (type === 'airdrop') {
+                    if (magnesium.airdrop >= 1) {
+                        toast({
+                            title: "Límite Alcanzado",
+                            description: "Solo puedes tener 1 Magnesio Airdrop a la vez. Úsalo antes de comprar otro.",
+                            status: "info"
+                        });
+                        setIsReloading(false);
+                        return;
+                    }
+
                     const json = {
                         contractName: "tokens",
                         contractAction: "transfer",
@@ -163,7 +180,7 @@ export const useFortisM2E = () => {
                 }
             }
         } catch (e) { setIsReloading(false); }
-    }, [user, toast]);
+    }, [user, toast, magnesium]);
 
     const consumeMagnesium = useCallback((amount: number, type: MagnesiumType = 'standard', challengeId?: string) => {
         const cost = Math.ceil(amount * costMultiplier);
@@ -178,41 +195,21 @@ export const useFortisM2E = () => {
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
         if (!user || !window.hive_keychain) return false;
 
-        // For 'airdrop' challenges, use direct FORTIS payment (Hive-Engine)
-        if (type === 'airdrop') {
-            return new Promise<boolean>((resolve) => {
-                const json = {
-                    contractName: "tokens",
-                    contractAction: "transfer",
-                    contractPayload: {
-                        symbol: "FORTIS",
-                        to: "fortis.m2e",
-                        quantity: "20",
-                        memo: `join:${challengeId}`
-                    }
-                };
-                (window.hive_keychain as any).requestCustomJson(
-                    user,
-                    'ssc-mainnet-hive',
-                    'Active',
-                    JSON.stringify(json),
-                    `Pagar 20 FORTIS - Reto #${challengeId}`,
-                    (res: any) => {
-                        if (res.success) {
-                            setJoinedChallenges(prev => prev.includes(challengeId) ? prev : [...prev, challengeId]);
-                            toast({ title: "¡Inscrito! 20 FORTIS enviados", status: "success" });
-                            resolve(true);
-                        } else {
-                            resolve(false);
-                        }
-                    }
-                );
-            });
-        }
+        // UNIFICATION: All types now use the Magnesium Stock system.
+        // The user effectively "paid" when they bought the magnesium block (reloadMagnesium).
+        // So here we just check stock -> broadcast join OP (RC only) -> decrement local stock.
 
-        // For other types, use Magnesium system (RC-only custom_json)
         const cost = Math.ceil(amount * costMultiplier);
-        if (magnesium[type] < cost) return false;
+        if (magnesium[type] < cost) {
+            toast({
+                title: "Saldo Insuficiente",
+                description: type === 'airdrop'
+                    ? "Necesitas recargar Magnesio Airdrop (Costo: 20 FORTIS)"
+                    : "Necesitas recargar tu Magnesio",
+                status: "warning"
+            });
+            return false;
+        }
 
         return new Promise<boolean>((resolve) => {
             const json = { action: 'join', id: challengeId, type, timestamp: new Date().toISOString() };
@@ -223,7 +220,10 @@ export const useFortisM2E = () => {
                 JSON.stringify(json),
                 `Unirse al Reto #${challengeId}`,
                 (res: any) => {
-                    if (res.success) resolve(consumeMagnesium(amount, type, challengeId));
+                    if (res.success) {
+                        resolve(consumeMagnesium(amount, type, challengeId));
+                        toast({ title: "¡Te has unido al reto!", status: "success" });
+                    }
                     else resolve(false);
                 }
             );
@@ -232,7 +232,7 @@ export const useFortisM2E = () => {
 
     const fetchParticipants = useCallback(async (challengeId?: string) => {
         try {
-            const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
+            const history = await getHiveClient().database.getAccountHistory('fortis.m2e', -1, 1000);
             const participants: any[] = [];
 
             (history || []).forEach(tx => {
@@ -293,7 +293,7 @@ export const useFortisM2E = () => {
         const admins = ['fortis.m2e', 'hecatonquirox'];
         try {
             const results = await Promise.all(admins.map(async acc => {
-                const history = await hiveClient.database.getAccountHistory(acc, -1, 1000);
+                const history = await getHiveClient().database.getAccountHistory(acc, -1, 1000);
                 return (history || []).filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_challenge').map(tx => ({ ...JSON.parse(tx[1].op[1].json), creator: acc }));
             }));
             return results.flat().filter(c => new Date(c.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -310,7 +310,7 @@ export const useFortisM2E = () => {
         const admins = ['fortis.m2e', 'hecatonquirox'];
         try {
             const results = await Promise.all(admins.map(async acc => {
-                const h = await hiveClient.database.getAccountHistory(acc, -1, 1000);
+                const h = await getHiveClient().database.getAccountHistory(acc, -1, 1000);
                 return (h || []).filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_results').map(tx => JSON.parse(tx[1].op[1].json));
             }));
             const r = results.flat().filter(x => new Date(x.timestamp) >= new Date(M2E_GENESIS_TIMESTAMP));
@@ -368,13 +368,13 @@ export const useFortisM2E = () => {
         const paidUsers = new Set<string>(); // Track users who got paid recently
         try {
             // Scan last 500 blocks (~25 mins) to find recent claims
-            const props = await hiveClient.database.getDynamicGlobalProperties();
+            const props = await getHiveClient().database.getDynamicGlobalProperties();
             const lastBlock = props.head_block_number;
             const BLOCKS_TO_SCAN = 500;
 
             const blocks = await Promise.all(
                 Array.from({ length: BLOCKS_TO_SCAN }, (_, i) => lastBlock - i)
-                    .map(num => hiveClient.database.getBlock(num))
+                    .map(num => getHiveClient().database.getBlock(num))
             );
 
             blocks.forEach(block => {
@@ -424,5 +424,5 @@ export const useFortisM2E = () => {
         }
     }, [user]);
 
-    return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading };
+    return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
 };

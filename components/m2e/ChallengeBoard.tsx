@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect } from 'react';
 import {
     Box,
@@ -121,18 +122,21 @@ const Leaderboard = ({ ranking }: { ranking: { account: string, score: number, r
  * @param isJoined - Boolean flag if the current user has already entered the pool
  * @param ranking - Optional ranking data for the challenge
  */
-const ChallengeCard = ({ challenge, onJoin, isJoined, ranking }: { challenge: Challenge, onJoin: (c: Challenge) => void, isJoined: boolean, ranking?: any[] }) => {
+const ChallengeCard = ({ challenge, onJoin, isJoined, ranking, participants = [] }: { challenge: Challenge, onJoin: (c: Challenge) => void, isJoined: boolean, ranking?: any[], participants?: any[] }) => {
     const { costMultiplier } = useFortisM2E();
     const [showParticipants, setShowParticipants] = useState(false);
 
     const config = MAGNESIO_CONFIG[challenge.magnesiumType || 'standard'];
 
     // DYNAMIC PRIZE CALCULATION:
-    // This simulates a real-time pool where 20% of all entry fees
-    // are distributed among the Top 3 winners.
+    // Real-time pool where 20% of all entry fees are distributed among the Top 3 winners.
+    // Based on REAL participants count.
     const entryValueHBD = config.priceHBD;
-    const simulatedParticipants = 12 + (challenge.id === '3' ? 45 : challenge.id === '2' ? 28 : 10);
-    const poolAmount = (simulatedParticipants * entryValueHBD * 0.20).toFixed(2);
+    const participantCount = participants.length;
+    // Ensure at least some base pool visibility if 0 participants, or just 0.
+    // User requested real data, so let's show real math. 
+    // If strict reality: (participantCount * entryValueHBD * 0.20)
+    const poolAmount = (participantCount * entryValueHBD * 0.20).toFixed(2);
 
     // Dynamic Expiry Calculation
     const startDate = challenge.timestamp ? new Date(challenge.timestamp) : new Date();
@@ -227,25 +231,31 @@ const ChallengeCard = ({ challenge, onJoin, isJoined, ranking }: { challenge: Ch
                 <VStack w="100%" spacing={2} align="flex-start">
                     <HStack w="100%" justify="space-between" cursor="pointer" onClick={() => setShowParticipants(!showParticipants)}>
                         <HStack spacing={2}>
-                            <Icon as={FaUsers} color="gray.500" />
-                            <Text fontSize="xs" color="gray.500" fontWeight="bold">{simulatedParticipants} ATLETAS</Text>
+                            <Icon as={FaUsers} color={participantCount > 0 ? "primary" : "gray.600"} />
+                            <Text fontSize="xs" color={participantCount > 0 ? "white" : "gray.600"} fontWeight="bold">
+                                {participantCount} ATLETAS
+                            </Text>
                         </HStack>
-                        <Icon as={showParticipants ? FaChevronUp : FaChevronDown} color="gray.500" boxSize={3} />
+                        {participantCount > 0 && (
+                            <Icon as={showParticipants ? FaChevronUp : FaChevronDown} color="gray.500" boxSize={3} />
+                        )}
                     </HStack>
 
-                    <AvatarGroup size="xs" max={5}>
-                        {MOCK_PARTICIPANTS.slice(0, simulatedParticipants % 10 + 5).map(u => (
-                            <Avatar key={u} name={u} src={getHiveAvatarUrl(u)} />
-                        ))}
-                    </AvatarGroup>
+                    {participantCount > 0 && (
+                        <AvatarGroup size="xs" max={5}>
+                            {participants.map(p => (
+                                <Avatar key={p.account} name={p.account} src={getHiveAvatarUrl(p.account)} />
+                            ))}
+                        </AvatarGroup>
+                    )}
 
-                    <Collapse in={showParticipants} animateOpacity style={{ width: '100%' }}>
-                        <Box p={2} bg="rgba(0,0,0,0.3)" borderRadius="lg" w="100%">
+                    <Collapse in={showParticipants && participantCount > 0} animateOpacity style={{ width: '100%' }}>
+                        <Box p={2} bg="rgba(0,0,0,0.3)" borderRadius="lg" w="100%" maxH="150px" overflowY="auto">
                             <VStack align="flex-start" spacing={1}>
-                                {MOCK_PARTICIPANTS.slice(0, 5).map(u => (
-                                    <HStack key={u} spacing={2} w="100%">
-                                        <Avatar size="2xs" name={u} src={getHiveAvatarUrl(u)} />
-                                        <Text fontSize="10px" color="gray.400">{u}</Text>
+                                {participants.map(p => (
+                                    <HStack key={p.account} spacing={2} w="100%">
+                                        <Avatar size="2xs" name={p.account} src={getHiveAvatarUrl(p.account)} />
+                                        <Text fontSize="10px" color="gray.400">@{p.account}</Text>
                                         <Badge variant="ghost" colorScheme="green" fontSize="8px" ml="auto">ACTIVE</Badge>
                                     </HStack>
                                 ))}
@@ -292,21 +302,23 @@ const ChallengeCard = ({ challenge, onJoin, isJoined, ranking }: { challenge: Ch
  * Handles the async blockchain registration flow and loading states.
  */
 const ChallengeBoard = () => {
-    const { joinChallenge, magnesium, fetchChallenges, fetchRankings, joinedChallenges, isLoading } = useFortisM2E();
+    const { joinChallenge, magnesium, fetchChallenges, fetchRankings, fetchParticipants, joinedChallenges, isLoading, user } = useFortisM2E();
     const [challenges, setChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
     const [allRankings, setAllRankings] = useState<any[]>([]);
+    const [allParticipants, setAllParticipants] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const toast = useToast();
 
     useEffect(() => {
         loadBlockchainData();
-    }, []);
+    }, [fetchChallenges, fetchRankings, fetchParticipants]); // Added dependencies
 
     const loadBlockchainData = async () => {
         setLoadingData(true);
-        const [bcChallenges, bcRankings] = await Promise.all([
+        const [bcChallenges, bcRankings, bcParticipants] = await Promise.all([
             fetchChallenges(),
-            fetchRankings()
+            fetchRankings(),
+            fetchParticipants()
         ]);
 
         // Map blockchain challenges to UI format
@@ -328,6 +340,7 @@ const ChallengeBoard = () => {
 
         setChallenges([...INITIAL_CHALLENGES, ...dynamicChallenges]);
         setAllRankings(bcRankings);
+        setAllParticipants(bcParticipants);
         setLoadingData(false);
     };
 
@@ -358,6 +371,14 @@ const ChallengeBoard = () => {
                 status: "success",
                 duration: 5000,
             });
+            // Optimistically update participants list
+            if (user) {
+                setAllParticipants(prev => [...prev, {
+                    account: user,
+                    challengeId: challenge.id,
+                    timestamp: new Date().toISOString()
+                }]);
+            }
         }
     };
 
@@ -398,6 +419,7 @@ const ChallengeBoard = () => {
                             onJoin={handleJoinChallenge}
                             isJoined={joinedChallenges.includes(challenge.id)}
                             ranking={allRankings.find(r => r.challenge_id === challenge.id)?.ranking}
+                            participants={allParticipants.filter(p => p.challengeId === challenge.id)}
                         />
                     ))}
                 </SimpleGrid>
