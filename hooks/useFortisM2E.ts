@@ -177,11 +177,44 @@ export const useFortisM2E = () => {
 
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
         if (!user || !window.hive_keychain) return false;
+
+        // For 'airdrop' challenges, use direct FORTIS payment (Hive-Engine)
+        if (type === 'airdrop') {
+            return new Promise<boolean>((resolve) => {
+                const json = {
+                    contractName: "tokens",
+                    contractAction: "transfer",
+                    contractPayload: {
+                        symbol: "FORTIS",
+                        to: "fortis.m2e",
+                        quantity: "20",
+                        memo: `join:${challengeId}`
+                    }
+                };
+                (window.hive_keychain as any).requestCustomJson(
+                    user,
+                    'ssc-mainnet-hive',
+                    'Active',
+                    JSON.stringify(json),
+                    `Pagar 20 FORTIS - Reto #${challengeId}`,
+                    (res: any) => {
+                        if (res.success) {
+                            setJoinedChallenges(prev => prev.includes(challengeId) ? prev : [...prev, challengeId]);
+                            toast({ title: "¡Inscrito! 20 FORTIS enviados", status: "success" });
+                            resolve(true);
+                        } else {
+                            resolve(false);
+                        }
+                    }
+                );
+            });
+        }
+
+        // For other types, use Magnesium system (RC-only custom_json)
         const cost = Math.ceil(amount * costMultiplier);
         if (magnesium[type] < cost) return false;
 
         return new Promise<boolean>((resolve) => {
-            // Updated to use custom_json (RC only) instead of 0.001 HBD transfer
             const json = { action: 'join', id: challengeId, type, timestamp: new Date().toISOString() };
             (window.hive_keychain as any).requestCustomJson(
                 user,
@@ -195,20 +228,48 @@ export const useFortisM2E = () => {
                 }
             );
         });
-    }, [user, magnesium, costMultiplier, consumeMagnesium]);
+    }, [user, magnesium, costMultiplier, consumeMagnesium, toast]);
 
     const fetchParticipants = useCallback(async (challengeId?: string) => {
         try {
             const history = await hiveClient.database.getAccountHistory('fortis.m2e', -1, 1000);
-            return (history || [])
-                .filter(tx => tx[1].op[0] === 'custom_json' && tx[1].op[1].id === 'fortis_m2e_join_challenge')
-                .map(tx => {
+            const participants: any[] = [];
+
+            (history || []).forEach(tx => {
+                const op = tx[1].op;
+
+                // Check for custom_json joins (Magnesium-based challenges)
+                if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_join_challenge') {
                     try {
-                        const d = JSON.parse(tx[1].op[1].json);
-                        return { account: tx[1].op[1].required_posting_auths[0], challengeId: d.id, timestamp: d.timestamp || tx[1].timestamp };
-                    } catch { return null; }
-                })
-                .filter(e => e !== null && (!challengeId || e.challengeId === challengeId));
+                        const d = JSON.parse(op[1].json);
+                        participants.push({
+                            account: op[1].required_posting_auths[0],
+                            challengeId: d.id,
+                            timestamp: d.timestamp || tx[1].timestamp
+                        });
+                    } catch { }
+                }
+
+                // Check for HE token transfers (FORTIS payment for airdrop challenges)
+                if (op[0] === 'custom_json' && op[1].id === 'ssc-mainnet-hive') {
+                    try {
+                        const payload = JSON.parse(op[1].json);
+                        if (payload.contractAction === 'transfer' &&
+                            payload.contractPayload.symbol === 'FORTIS' &&
+                            payload.contractPayload.memo?.startsWith('join:')) {
+                            const joinedChallengeId = payload.contractPayload.memo.split(':')[1];
+                            participants.push({
+                                account: op[1].required_auths[0],
+                                challengeId: joinedChallengeId,
+                                timestamp: tx[1].timestamp,
+                                paidFORTIS: payload.contractPayload.quantity
+                            });
+                        }
+                    } catch { }
+                }
+            });
+
+            return participants.filter(e => !challengeId || e.challengeId === challengeId);
         } catch { return []; }
     }, []);
 
