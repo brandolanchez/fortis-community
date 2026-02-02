@@ -477,12 +477,30 @@ export const useFortisM2E = () => {
 
 
     const payoutFaucet = useCallback(async (claims: any[]) => {
-        if (!user || !window.hive_keychain) return;
+        if (!user || !(window as any).hive_keychain) {
+            toast({ title: "Error", description: "Keychain no detectado", status: "error" });
+            return;
+        }
+
+        console.log(`Starting payout for ${claims.length} claims...`);
+
         for (const c of claims) {
             const json = { contractName: "tokens", contractAction: "transfer", contractPayload: { symbol: "FORTIS", to: c.account, quantity: "20", memo: "Faucet Claim" } };
-            await new Promise(r => (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), `Faucet to ${c.account}`, () => setTimeout(r, 500)));
+            await new Promise(r => {
+                (window as any).hive_keychain.requestCustomJson(
+                    user,
+                    'ssc-mainnet-hive',
+                    'Active',
+                    JSON.stringify(json),
+                    `Faucet: 20 FORTIS -> ${c.account}`,
+                    (res: any) => {
+                        console.log(`Payout to ${c.account}:`, res);
+                        setTimeout(r, 500); // Wait bit before next
+                    }
+                );
+            });
         }
-    }, [user]);
+    }, [user, toast]);
 
     return { magnesium, joinedChallenges, stakeAmount, tier, costMultiplier, reloadMagnesium, joinChallenge, consumeMagnesium, simulateStake, fetchParticipants, payoutRewards, createChallenge, fetchChallenges, saveRanking, fetchRankings, claimAirdropFaucet, fetchFaucetClaims, payoutFaucet, hasClaimedFaucet, isReloading, isLoading, user };
 };

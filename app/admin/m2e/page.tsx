@@ -493,7 +493,24 @@ const AdminM2E = () => {
                                                                     </HStack>
                                                                 </Td>
                                                                 <Td fontSize="xs" color="gray.400">{new Date(claim.timestamp).toLocaleString()}</Td>
-                                                                <Td><Badge colorScheme="orange">PENDIENTE</Badge></Td>
+                                                                <Td>
+                                                                    <HStack>
+                                                                        <Badge colorScheme="orange">PENDIENTE</Badge>
+                                                                        <Button
+                                                                            size="xs"
+                                                                            colorScheme="green"
+                                                                            onClick={async () => {
+                                                                                if (window.confirm(`¿Pagar 20 FORTIS a @${claim.account}?`)) {
+                                                                                    await payoutFaucet([claim]);
+                                                                                    // Small delay to allow blockchain prop (optional but good UI)
+                                                                                    setTimeout(loadInitialData, 3000);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            PAGAR
+                                                                        </Button>
+                                                                    </HStack>
+                                                                </Td>
                                                             </Tr>
                                                         ))}
                                                         {faucetClaims.pending.length === 0 && (
