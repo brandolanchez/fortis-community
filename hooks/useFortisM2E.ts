@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useKeychain } from '@/contexts/KeychainContext';
 import { useToast } from '@chakra-ui/react';
 import { Client } from '@hiveio/dhive';
+import { supabase } from '@/lib/supabase';
 
 const HIVE_RPC_NODES = [
     'https://api.deathwing.me',
@@ -139,6 +140,59 @@ export const useFortisM2E = () => {
         toast({ title: "Stake Actualizado", status: "info" });
     };
 
+    // --- VERIFICATION HELPERS ---
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    const verifyTransaction = async (user: string, amount: string, memoPrefix: string, timeoutSec = 20): Promise<boolean> => {
+        const start = Date.now();
+        const HISTORY_API = 'https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=50&symbol=FORTIS';
+
+        while (Date.now() - start < timeoutSec * 1000) {
+            try {
+                const res = await fetch(HISTORY_API);
+                const history = await res.json();
+
+                // Find a transaction that matches conditions and was created RECENTLY (last minute)
+                const validTx = history.find((tx: any) =>
+                    tx.to === 'fortis.m2e' &&
+                    tx.symbol === 'FORTIS' &&
+                    (tx.from === user || tx.sender === user) &&
+                    parseFloat(tx.quantity) === parseFloat(amount) &&
+                    (tx.memo && tx.memo.startsWith(memoPrefix)) &&
+                    (Date.now() - (tx.timestamp * 1000)) < 60000 // Must be within last 60s
+                );
+
+                if (validTx) {
+                    console.log("Transaction Verified:", validTx);
+                    return true;
+                }
+            } catch (e) { console.error("Verify poll error:", e); }
+
+            await sleep(2000); // Wait 2s before retry
+        }
+        return false;
+    };
+
+    const verifyL1Operation = async (user: string, id: string, timeoutSec = 20): Promise<boolean> => {
+        const start = Date.now();
+        while (Date.now() - start < timeoutSec * 1000) {
+            try {
+                const history = await getHiveClient().database.getAccountHistory(user, -1, 50);
+                // Look for the custom_json
+                const found = history.some(tx => {
+                    const op = tx[1].op;
+                    return op[0] === 'custom_json' &&
+                        op[1].id === id &&
+                        (Date.now() - (new Date(tx[1].timestamp).getTime())) < 60000;
+                });
+
+                if (found) return true;
+            } catch (e) { }
+            await sleep(2000);
+        }
+        return false;
+    };
+
     const reloadMagnesium = useCallback(async (type: MagnesiumType = 'standard') => {
         if (!user) return;
         setIsReloading(true);
@@ -147,36 +201,49 @@ export const useFortisM2E = () => {
         try {
             if (typeof window !== 'undefined' && (window as any).hive_keychain) {
                 if (type === 'airdrop') {
-                    if (magnesium.airdrop >= 1) {
-                        toast({
-                            title: "Límite Alcanzado",
-                            description: "Solo puedes tener 1 Magnesio Airdrop a la vez. Úsalo antes de comprar otro.",
-                            status: "info"
-                        });
-                        setIsReloading(false);
-                        return;
-                    }
+                    // LIMIT REMOVED: Users can buy as many as they want (20 FORTIS each)
 
                     const json = {
                         contractName: "tokens",
                         contractAction: "transfer",
                         contractPayload: { symbol: "FORTIS", to: "fortis.m2e", quantity: "20", memo: "Reload AIRDROP" }
                     };
-                    (window.hive_keychain as any).requestCustomJson(user, 'ssc-mainnet-hive', 'Active', JSON.stringify(json), "Buy Airdrop Magnesium (20 FORTIS)", (res: any) => {
-                        if (res.success) {
-                            setMagnesium(prev => ({ ...prev, airdrop: prev.airdrop + 1 }));
-                            toast({ title: "Recarga exitosa (+1)", status: "success" });
-                        }
-                        setIsReloading(false);
-                    });
+
+                    (window.hive_keychain as any).requestCustomJson(
+                        user,
+                        'ssc-mainnet-hive',
+                        'Active',
+                        JSON.stringify(json),
+                        "Buy Airdrop Magnesium (20 FORTIS)",
+                        async (res: any) => {
+                            if (res.success) {
+                                toast({ title: "Verificando pago...", description: "Esperando confirmación en Hive Engine (~15s)", status: "loading", duration: 20000 });
+                                const confirmed = await verifyTransaction(user, "20", "Reload AIRDROP");
+
+                                if (confirmed) {
+                                    setMagnesium(prev => ({ ...prev, airdrop: prev.airdrop + 1 }));
+                                    toast({ title: "¡Compra Verificada!", status: "success" });
+                                } else {
+                                    toast({ title: "Pago no confirmado", description: "No detectamos el pago en la red aún. Si pagaste, recarga en unos minutos.", status: "error" });
+                                }
+                            }
+                            setIsReloading(false);
+                        });
                 } else {
-                    (window.hive_keychain as any).requestTransfer(user, 'fortis.m2e', costs[type], JSON.stringify({ action: 'reload', type }), 'HBD', (res: any) => {
-                        if (res.success) {
-                            setMagnesium(prev => ({ ...prev, [type]: prev[type] + 5 }));
-                            toast({ title: "Recarga exitosa (+5)", status: "success" });
-                        }
-                        setIsReloading(false);
-                    });
+                    // HBD Transfer for standard items
+                    (window.hive_keychain as any).requestTransfer(
+                        user,
+                        'fortis.m2e',
+                        costs[type],
+                        JSON.stringify({ action: 'reload', type }),
+                        'HBD',
+                        (res: any) => {
+                            if (res.success) {
+                                setMagnesium(prev => ({ ...prev, [type]: prev[type] + 5 }));
+                                toast({ title: "Recarga exitosa (+5)", status: "success" });
+                            }
+                            setIsReloading(false);
+                        });
                 }
             }
         } catch (e) { setIsReloading(false); }
@@ -195,17 +262,11 @@ export const useFortisM2E = () => {
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
         if (!user || !window.hive_keychain) return false;
 
-        // UNIFICATION: All types now use the Magnesium Stock system.
-        // The user effectively "paid" when they bought the magnesium block (reloadMagnesium).
-        // So here we just check stock -> broadcast join OP (RC only) -> decrement local stock.
-
         const cost = Math.ceil(amount * costMultiplier);
         if (magnesium[type] < cost) {
             toast({
                 title: "Saldo Insuficiente",
-                description: type === 'airdrop'
-                    ? "Necesitas recargar Magnesio Airdrop (Costo: 20 FORTIS)"
-                    : "Necesitas recargar tu Magnesio",
+                description: type === 'airdrop' ? "Recarga Magnesio Airdrop" : "Recarga tu Magnesio",
                 status: "warning"
             });
             return false;
@@ -222,16 +283,40 @@ export const useFortisM2E = () => {
                     memo: `join:${challengeId}`
                 }
             };
+
             (window as any).hive_keychain.requestCustomJson(
                 user,
                 'ssc-mainnet-hive',
                 'Active',
                 JSON.stringify(json),
                 `Unirse al Reto #${challengeId}`,
-                (res: any) => {
+                async (res: any) => {
                     if (res.success) {
-                        resolve(consumeMagnesium(amount, type, challengeId));
-                        toast({ title: "¡Te has unido al reto!", status: "success" });
+                        toast({ title: "Verificando...", description: "Confirmando inscripción en Hive Engine...", status: "loading", duration: 15000 });
+                        // Verify 0.01 FORTIS sent
+                        const confirmed = await verifyTransaction(user, "0.01", `join:${challengeId}`);
+
+                        if (confirmed) {
+                            consumeMagnesium(amount, type, challengeId);
+
+                            // --- SUPABASE INTEGRATION ---
+                            const { error } = await supabase.from('participants').insert({
+                                challenge_id: challengeId,
+                                account: user,
+                                paid_amount: "0.01",
+                                tx_id: res.result?.id || `manual_${Date.now()}`
+                            });
+
+                            if (error) {
+                                console.error("Supabase Save Error:", error);
+                            }
+
+                            toast({ title: "¡Te has unido al reto!", status: "success" });
+                            resolve(true);
+                        } else {
+                            toast({ title: "Error de Verificación", description: "No se confirmó la transacción en la red.", status: "error" });
+                            resolve(false);
+                        }
                     }
                     else resolve(false);
                 }
@@ -241,85 +326,22 @@ export const useFortisM2E = () => {
 
     const fetchParticipants = useCallback(async (challengeId?: string) => {
         try {
-            const participants: any[] = [];
+            // 1. Fetch from Supabase (Fast & Reliable)
+            const { data, error } = await supabase
+                .from('participants')
+                .select('*');
 
-            // 1. Fetch Hive Engine History (Source of Truth for Token Payments)
-            try {
-                // Fetch DAO history + Specific User history (to ensure he appears even if buried in DAO history)
-                // We fetch specific users as requested to force appearance if valid
-                const [daoHistoryRes, bastienRes, valecillosRes] = await Promise.all([
-                    fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS'),
-                    fetch('https://history.hive-engine.com/accountHistory?account=bastiensw&limit=50&symbol=FORTIS'),
-                    fetch('https://history.hive-engine.com/accountHistory?account=valecillos&limit=50&symbol=FORTIS')
-                ]);
-
-                const daoHistory = await daoHistoryRes.json();
-                const bastienHistory = await bastienRes.json();
-                const valecillosHistory = await valecillosRes.json();
-
-                // Combine histories (User history shows sender side)
-                const combinedHistory = [...daoHistory, ...bastienHistory, ...valecillosHistory];
-
-                combinedHistory.forEach((tx: any) => {
-                    // Valid Join Condition: Transfer to fortis.m2e with FORTIS and memo join:ID
-                    // Also check for "transfer" contract action in custom_json if needed, but usually tokens_transfer op is standard
-                    if (tx.operation === 'tokens_transfer' && tx.to === 'fortis.m2e' && tx.symbol === 'FORTIS') {
-                        if (tx.memo && tx.memo.startsWith('join:')) {
-                            const joinedChallengeId = tx.memo.split(':')[1];
-                            participants.push({
-                                account: tx.from || tx.sender, // Support both field names if API varies
-                                challengeId: joinedChallengeId,
-                                timestamp: new Date(tx.timestamp * 1000).toISOString(),
-                                paidFORTIS: tx.quantity
-                            });
-                        }
-                    }
-                });
-
-                // FORCE MANUAL INJECTION (As requested for @bastiensw and @valecillos)
-                // We dynamically find the Challenge ID by looking at other participants who are definitely in the Genesis challenge
-                const forcedUsers = ['bastiensw', 'valecillos'];
-                const referenceParticipant = participants.find(p =>
-                    ['elprofetasw', 'hecatonquirox', 'markworkout'].includes(p.account)
-                );
-
-                if (referenceParticipant) {
-                    forcedUsers.forEach(user => {
-                        const isIncluded = participants.some(p => p.account === user);
-                        if (!isIncluded) {
-                            participants.push({
-                                account: user,
-                                challengeId: referenceParticipant.challengeId,
-                                timestamp: new Date().toISOString(),
-                                paidFORTIS: '0.01' // Assumed paid
-                            });
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error("Error fetching Hive Engine history:", e);
+            if (data && !error) {
+                const mapped = data.map(p => ({
+                    account: p.account,
+                    challengeId: p.challenge_id,
+                    timestamp: p.created_at,
+                    paidFORTIS: p.paid_amount
+                }));
+                if (challengeId) return mapped.filter(p => p.challengeId === challengeId);
+                return mapped;
             }
-
-            // 2. Legacy: Fetch Layer 1 History for old custom_json (optional, keeping for safety)
-            try {
-                const history = await getHiveClient().database.getAccountHistory('fortis.m2e', -1, 1000);
-                (history || []).forEach(tx => {
-                    const op = tx[1].op;
-                    if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_join_challenge') {
-                        try {
-                            const d = JSON.parse(op[1].json);
-                            participants.push({
-                                account: op[1].required_posting_auths[0],
-                                challengeId: d.id,
-                                timestamp: d.timestamp || tx[1].timestamp
-                            });
-                        } catch { }
-                    }
-                });
-            } catch (e) { console.error("Error fetching L1 history:", e); }
-
-            const unique = Array.from(new Map(participants.map(p => [p.account + p.challengeId, p])).values());
-            return unique.filter(e => !challengeId || e.challengeId === challengeId);
+            return [];
         } catch { return []; }
     }, []);
 
@@ -388,38 +410,43 @@ export const useFortisM2E = () => {
         }
 
         return new Promise(r => {
-            // Use custom_json (Posting Authority) - Costs only RC, no HBD/HIVE needed
-            // This is safer than requestPost which seems to fail silently for some users/params
             const json = { account: user, app: "fortis-m2e", timestamp: new Date().toISOString() };
             console.log("Requesting custom_json:", json);
+
             (window as any).hive_keychain.requestCustomJson(
                 user,
                 'fortis_m2e_faucet_claim',
                 'Posting',
                 JSON.stringify(json),
                 "Solicitar 20 FORTIS (Faucet)",
-                (res: any) => {
+                async (res: any) => {
                     if (res.success) {
-                        setHasClaimedFaucet(true);
-                        toast({ title: "Solicitud Enviada (RC)", status: "success" });
+                        toast({ title: "Enviando...", description: "Esperando confirmación de la red...", status: "info", duration: 10000 });
+
+                        const verified = await verifyL1Operation(user, 'fortis_m2e_faucet_claim');
+
+                        if (verified) {
+                            setHasClaimedFaucet(true);
+                            toast({ title: "Faucet Reclamado", description: "Tus tokens llegarán en breve.", status: "success" });
+                            r(true);
+                        } else {
+                            toast({ title: "Tiempo de espera agotado", description: "La red está lenta, verifica tu historial en unos minutos.", status: "warning" });
+                            r(false);
+                        }
+                    } else {
+                        r(false);
                     }
-                    r(res.success);
                 }
             );
         });
     }, [user, hasClaimedFaucet, toast]);
 
-    /**
-     * FETCH FAUCET CLAIMS (Admin)
-     * To find requests without knowing usernames, we scan recent blockchain blocks.
-     */
     const fetchFaucetClaims = useCallback(async () => {
         const historyClaims: any[] = [];
         const pendingClaims: any[] = [];
         const paidUsersMap = new Set<string>();
 
         try {
-            // 1. Fetch Hive Engine Payment History (Outgoing FORTIS)
             try {
                 const response = await fetch('https://history.hive-engine.com/accountHistory?account=fortis.m2e&limit=1000&symbol=FORTIS');
                 const heHistory = await response.json();
@@ -439,7 +466,6 @@ export const useFortisM2E = () => {
                 });
             } catch (e) { console.error("Error fetching HE history for faucet:", e); }
 
-            // 2. Scan Blocks for Pending Requests (Last ~2000 blocks)
             const props = await getHiveClient().database.getDynamicGlobalProperties();
             const lastBlock = props.head_block_number;
             const BLOCKS_TO_SCAN = 5000;
@@ -455,7 +481,6 @@ export const useFortisM2E = () => {
                     tx.operations.forEach((op: any) => {
                         if (op[0] === 'custom_json' && op[1].id === 'fortis_m2e_faucet_claim') {
                             const user = op[1].required_posting_auths[0];
-                            // Only add if NOT in paid history
                             if (!paidUsersMap.has(user)) {
                                 pendingClaims.push({
                                     account: user,
@@ -467,7 +492,6 @@ export const useFortisM2E = () => {
                 });
             });
 
-            // unique pending
             const uniquePending = Array.from(new Map(pendingClaims.map(p => [p.account, p])).values());
 
             return {
