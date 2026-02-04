@@ -78,45 +78,61 @@ export const useFortisM2E = () => {
         }
     }, [tier]);
 
-    // LOAD DATA
+    // LOAD DATA (Supabase)
     useEffect(() => {
         const currentUser = user || 'guest';
         setIsLoading(true);
 
         const loadData = async () => {
-            const key = `fortis_m2e_v2_${currentUser}`;
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    setMagnesium(parsed.magnesium || { standard: 5, aged: 0, gold: 0, airdrop: 0 });
-                    setStakeAmount(parsed.stakeAmount || 0);
-                    setLastRegen(parsed.lastRegen || Date.now());
-                    setJoinedChallenges(parsed.joinedChallenges || []);
-                } catch (e) {
-                    setMagnesium({ standard: 5, aged: 0, gold: 0, airdrop: 0 });
-                }
-            } else {
+            if (!user) {
                 setMagnesium({ standard: 5, aged: 0, gold: 0, airdrop: 0 });
-                setStakeAmount(0);
-                setJoinedChallenges([]);
+                setIsLoading(false);
+                return;
             }
 
-            // Check Faucet Status via Custom JSON (RC)
-            // We check the USER'S history, because custom_json only appears in the sender's history
-            if (user) {
-                try {
-                    const history = await getHiveClient().database.getAccountHistory(user, -1, 1000);
-                    const claimed = (history || []).some(tx => {
-                        const op = tx[1].op;
-                        return op[0] === 'custom_json' &&
-                            op[1].id === 'fortis_m2e_faucet_claim';
+            // 1. Fetch Profile
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('account', user)
+                .single();
+
+            if (data) {
+                setMagnesium({
+                    standard: data.magnesium_standard || 0,
+                    aged: data.magnesium_aged || 0,
+                    gold: data.magnesium_gold || 0,
+                    airdrop: data.magnesium_airdrop || 0
+                });
+                setStakeAmount(data.stake_amount || 0);
+            } else {
+                // Create Profile if not exists
+                const initialMagnesium = { standard: 5, aged: 0, gold: 0, airdrop: 0 };
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({
+                        account: user,
+                        magnesium_standard: 5,
+                        magnesium_aged: 0,
+                        magnesium_gold: 0,
+                        magnesium_airdrop: 0
                     });
-                    setHasClaimedFaucet(claimed);
-                } catch (e) {
-                    console.error("Faucet verify error", e);
+
+                if (!insertError) {
+                    setMagnesium(initialMagnesium);
                 }
             }
+
+            // Check Faucet
+            try {
+                const history = await getHiveClient().database.getAccountHistory(user, -1, 1000);
+                const claimed = (history || []).some(tx => {
+                    const op = tx[1].op;
+                    return op[0] === 'custom_json' &&
+                        op[1].id === 'fortis_m2e_faucet_claim';
+                });
+                setHasClaimedFaucet(claimed);
+            } catch (e) { }
 
             setLoadedUser(currentUser);
             setIsLoading(false);
@@ -125,15 +141,7 @@ export const useFortisM2E = () => {
         loadData();
     }, [user]);
 
-    // SYNC DATA
-    useEffect(() => {
-        const currentUser = user || 'guest';
-        if (!isLoading && loadedUser === currentUser) {
-            localStorage.setItem(`fortis_m2e_v2_${currentUser}`, JSON.stringify({
-                magnesium, stakeAmount, lastRegen, joinedChallenges
-            }));
-        }
-    }, [magnesium, stakeAmount, lastRegen, joinedChallenges, user, isLoading, loadedUser]);
+    // SYNC DATA (Removed LocalStorage sync, now we explicitly save on actions)
 
     const simulateStake = (amount: number) => {
         setStakeAmount(prev => prev + amount);
@@ -193,6 +201,17 @@ export const useFortisM2E = () => {
         return false;
     };
 
+    const updateProfileBalance = async (newMagnesium: Record<MagnesiumType, number>) => {
+        if (!user) return;
+        await supabase.from('profiles').update({
+            magnesium_standard: newMagnesium.standard,
+            magnesium_aged: newMagnesium.aged,
+            magnesium_gold: newMagnesium.gold,
+            magnesium_airdrop: newMagnesium.airdrop,
+            updated_at: new Date().toISOString() // Or just let DB handle it? Supabase usually needs explicit
+        }).eq('account', user);
+    };
+
     const reloadMagnesium = useCallback(async (type: MagnesiumType = 'standard') => {
         if (!user) return;
         setIsReloading(true);
@@ -221,7 +240,12 @@ export const useFortisM2E = () => {
                                 const confirmed = await verifyTransaction(user, "20", "Reload AIRDROP");
 
                                 if (confirmed) {
-                                    setMagnesium(prev => ({ ...prev, airdrop: prev.airdrop + 1 }));
+                                    setMagnesium(prev => {
+                                        const next = { ...prev, airdrop: prev.airdrop + 1 };
+                                        // Save to Supabase
+                                        supabase.from('profiles').update({ magnesium_airdrop: next.airdrop }).eq('account', user).then();
+                                        return next;
+                                    });
                                     toast({ title: "¡Compra Verificada!", status: "success" });
                                 } else {
                                     toast({ title: "Pago no confirmado", description: "No detectamos el pago en la red aún. Si pagaste, recarga en unos minutos.", status: "error" });
@@ -239,7 +263,13 @@ export const useFortisM2E = () => {
                         'HBD',
                         (res: any) => {
                             if (res.success) {
-                                setMagnesium(prev => ({ ...prev, [type]: prev[type] + 5 }));
+                                setMagnesium(prev => {
+                                    const next = { ...prev, [type]: prev[type] + 5 };
+                                    // Save to Supabase
+                                    const colName = `magnesium_${type}`;
+                                    supabase.from('profiles').update({ [colName]: next[type] }).eq('account', user).then();
+                                    return next;
+                                });
                                 toast({ title: "Recarga exitosa (+5)", status: "success" });
                             }
                             setIsReloading(false);
@@ -252,12 +282,18 @@ export const useFortisM2E = () => {
     const consumeMagnesium = useCallback((amount: number, type: MagnesiumType = 'standard', challengeId?: string) => {
         const cost = Math.ceil(amount * costMultiplier);
         if (magnesium[type] >= cost) {
-            setMagnesium(prev => ({ ...prev, [type]: prev[type] - cost }));
+            setMagnesium(prev => {
+                const next = { ...prev, [type]: prev[type] - cost };
+                // Save to Supabase
+                const colName = `magnesium_${type}`;
+                supabase.from('profiles').update({ [colName]: next[type] }).eq('account', user).then();
+                return next;
+            });
             if (challengeId) setJoinedChallenges(prev => prev.includes(challengeId) ? prev : [...prev, challengeId]);
             return true;
         }
         return false;
-    }, [magnesium, costMultiplier]);
+    }, [magnesium, costMultiplier, user]);
 
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
         if (!user || !window.hive_keychain) return false;
