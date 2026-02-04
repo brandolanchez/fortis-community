@@ -123,6 +123,16 @@ export const useFortisM2E = () => {
                 }
             }
 
+            // 2. Fetch Joined Challenges
+            const { data: challengesData } = await supabase
+                .from('participants')
+                .select('challenge_id')
+                .eq('account', user);
+
+            if (challengesData) {
+                setJoinedChallenges(challengesData.map(c => c.challenge_id));
+            }
+
             // Check Faucet
             try {
                 const history = await getHiveClient().database.getAccountHistory(user, -1, 1000);
@@ -297,6 +307,12 @@ export const useFortisM2E = () => {
 
     const joinChallenge = useCallback(async (challengeId: string, amount: number, type: MagnesiumType = 'standard') => {
         if (!user || !window.hive_keychain) return false;
+
+        // PREVENT DUPLICATE JOIN
+        if (joinedChallenges.includes(challengeId)) {
+            toast({ title: "Ya estás inscrito", description: "No puedes unirte al mismo reto dos veces.", status: "warning" });
+            return false;
+        }
 
         const cost = Math.ceil(amount * costMultiplier);
         if (magnesium[type] < cost) {

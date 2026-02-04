@@ -282,7 +282,7 @@ const ChallengeCard = ({ challenge, onJoin, isJoined, ranking, participants = []
                         fontWeight="black"
                         letterSpacing="wide"
                     >
-                        {isJoined ? "EN COMPETENCIA" : "COMPRAR ENTRADA"}
+                        {isJoined ? "COMPITIENDO" : "COMPRAR ENTRADA"}
                     </Button>
                 )}
 
